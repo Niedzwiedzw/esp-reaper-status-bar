@@ -32,6 +32,7 @@ use static_cell::make_static;
 use tap::prelude::*;
 
 pub mod reaper_diagnostic_fetch;
+pub mod status_bar_display;
 
 pub const ESP_WIFI_SSID: &str = env!("ESP_WIFI_SSID");
 pub const ESP_WIFI_PASSWORD: &str = env!("ESP_WIFI_PASSWORD");
@@ -70,11 +71,18 @@ impl<T> Result<T> {
 }
 
 type NetworkStack = &'static Stack<WifiDevice<'static, WifiStaDevice>>;
+#[derive(Clone, Copy)]
+struct GlobalContext {
+    network_stack: NetworkStack,
+    display: &'static status_bar_display::MyMatrixDisplay,
+}
 
-async fn setup(spawner: Spawner) -> Result<NetworkStack> {
+async fn setup(spawner: Spawner) -> Result<GlobalContext> {
     esp_println::logger::init_logger(log::LevelFilter::Warn);
-    let peripherals = Peripherals::take();
-
+    let mut peripherals = Peripherals::take();
+    let display = crate::status_bar_display::MyMatrixDisplay::new(&mut peripherals)
+        .wrap_err("initializing display")
+        .map(|v| &*make_static!(v))?;
     let system = peripherals.SYSTEM.split();
     let clocks = ClockControl::max(system.clock_control).freeze();
     // #[cfg(target_arch = "xtensa")]
@@ -116,12 +124,21 @@ async fn setup(spawner: Spawner) -> Result<NetworkStack> {
         .spawn(net_task(stack))
         .into_wrap_err("spawning net task")?;
 
-    Ok(stack)
+    Ok(GlobalContext {
+        network_stack: stack,
+        display,
+    })
 }
 
-async fn actual_main(_spawner: Spawner, stack: NetworkStack) -> Result<()> {
+async fn actual_main(
+    _spawner: Spawner,
+    GlobalContext {
+        network_stack,
+        display,
+    }: GlobalContext,
+) -> Result<()> {
     loop {
-        if stack.is_link_up() {
+        if network_stack.is_link_up() {
             break;
         }
         Timer::after(Duration::from_millis(500)).await;
@@ -129,7 +146,7 @@ async fn actual_main(_spawner: Spawner, stack: NetworkStack) -> Result<()> {
 
     println!("Waiting to get IP address...");
     loop {
-        if let Some(config) = stack.config_v4() {
+        if let Some(config) = network_stack.config_v4() {
             println!("Got IP: {}", config.address);
             break;
         }
@@ -137,9 +154,9 @@ async fn actual_main(_spawner: Spawner, stack: NetworkStack) -> Result<()> {
     }
 
     let client_state = TcpClientState::<2, IO_BUFFER_SIZE, IO_BUFFER_SIZE>::new();
-    let tcp_client = TcpClient::new(stack, &client_state);
+    let tcp_client = TcpClient::new(network_stack, &client_state);
     println!("created a tcp client");
-    let dns_socket = DnsSocket::new(stack);
+    let dns_socket = DnsSocket::new(network_stack);
     let mut client = reqwless::client::HttpClient::new(&tcp_client, &dns_socket);
 
     let mut client = reaper_diagnostic_fetch::ReaperClient::new(&mut client, ESP_REAPER_BASE_URL)
@@ -175,9 +192,9 @@ async fn main(spawner: Spawner) -> ! {
     debug_env!(ESP_WIFI_SSID);
     debug_env!(ESP_WIFI_PASSWORD);
     debug_env!(ESP_REAPER_BASE_URL);
-    let stack = setup(spawner).await.expect("failed to setup network stack");
+    let global_context = setup(spawner).await.expect("failed to setup network stack");
     loop {
-        match actual_main(spawner, stack).await {
+        match actual_main(spawner, global_context).await {
             Ok(_) => println!("app just finished"),
             Err(message) => {
                 println!("ERROR: {message}. (restarting)");

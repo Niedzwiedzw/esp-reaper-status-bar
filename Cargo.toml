@@ -31,6 +31,7 @@ esp-wifi = { version = "0.3.0", features = [
   "smoltcp",
   "phy-enable-usb",
   "wifi-logs",
+  "log",
 ] }
 smoltcp = { version = "0.10.0", default-features = false, features = [
   "proto-igmp",
@@ -64,7 +65,14 @@ tap = "1.0.1"
 embedded-nal-async = "0.7.1"
 extension-traits = "1.0.1"
 enumflags2 = "0.7.9"
-
+embedded-graphics = "0.8.1"
+# hub75 = { git = "https://github.com/david-sawatzke/hub75-rs", rev = "ba1eaa6", features = [
+#   "size-64x64",
+# ] }
+hub75 = { path = "/home/niedzwiedz/Programming/hub75-rs", features = [
+  "size-64x64",
+] }
+embedded-hal = "0.2"
 
 [profile.dev]
 codegen-units = 1
