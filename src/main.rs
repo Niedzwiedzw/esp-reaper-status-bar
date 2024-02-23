@@ -39,7 +39,7 @@ pub const ESP_REAPER_BASE_URL: &str = env!("ESP_REAPER_BASE_URL");
 
 // const RX_BUFFER_SIZE: usize = BUFFER_SIZE;
 // const TX_BUFFER_SIZE: usize = BUFFER_SIZE;
-const IO_BUFFER_SIZE: usize = 1024 * 8;
+const IO_BUFFER_SIZE: usize = 1024 * 4;
 
 const MAX_ERROR_SIZE: usize = 128 * 2;
 pub type Error = heapless::String<MAX_ERROR_SIZE>;
