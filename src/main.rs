@@ -168,14 +168,14 @@ async fn actual_main(
             .await
             .into_wrap_err("timeout occurred")
             .and_then(|out| out)
-            .wrap_err("fetching reaper status")?
-            .pipe(|status| {
+            .wrap_err("fetching reaper status")
+            .and_then(move |status| {
                 println!("OK: {:?} :: ", status.play_state);
                 status.tracks.iter().for_each(|track| {
                     print!("{} ", track.last_meter_peak);
                 });
-                println!()
-            });
+                display.draw_state(status)
+            })?;
         Timer::after(Duration::from_millis(500)).await;
     }
 }

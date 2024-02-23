@@ -8,10 +8,9 @@ use embedded_graphics::{
     Drawable as _,
 };
 use hal::{
-    gpio::{GpioPin, Output, OutputPin, PullDown, PullUp, PushPull},
+    gpio::{GpioPin, Output, PushPull},
     IO,
 };
-use hub75::Outputs;
 
 type WiringPin<const INDEX: u8> = GpioPin<Output<PushPull>, INDEX>;
 
@@ -85,7 +84,7 @@ impl MyMatrixDisplay {
         Ok(Self(display))
     }
 
-    pub fn draw_state(&mut self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
+    pub fn draw_state(&self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
         let fill = PrimitiveStyle::with_fill(Rgb565::new(30, 80, 120));
 
         Rectangle::new(Point::new(5, 5), Size::new(16, 16))
