@@ -1,0 +1,75 @@
+[package]
+name = "esp-reaper-status-bar-rs"
+version = "0.1.0"
+authors = ["niedzwiedzw <niedzwiedzwo@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+
+[dependencies]
+esp32-hal = { version = "0.18.0", features = [
+  "embassy",
+  "embassy-executor-thread",
+  "embassy-time-timg0",
+  "log",
+] }
+esp-backtrace = { version = "0.11.0", features = [
+  "esp32",
+  "panic-handler",
+  "exception-handler",
+  "println",
+] }
+esp-println = { version = "0.9.0", features = ["esp32", "log"] }
+log = { version = "0.4.20" }
+esp-alloc = { version = "0.3.0" }
+esp-wifi = { version = "0.3.0", features = [
+  "esp32",
+  "wifi",
+  "embassy-net",
+  "wifi-default",
+  "async",
+  "smoltcp",
+  "phy-enable-usb",
+] }
+smoltcp = { version = "0.10.0", default-features = false, features = [
+  "proto-igmp",
+  "proto-ipv4",
+  "socket-tcp",
+  "socket-icmp",
+  "socket-udp",
+  "medium-ethernet",
+  "proto-dhcpv4",
+  "socket-raw",
+  "socket-dhcpv4",
+] }
+embedded-svc = { version = "0.27", default-features = false, features = [] }
+embedded-io = "0.6.1"
+heapless = { version = "0.8.0", default-features = false }
+embassy-executor = { version = "0.5.0", features = ["nightly"] }
+embassy-time = "0.3.0"
+esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0a", features = [
+  "esp32",
+] }
+embassy-time-driver = "0.1"
+snafu = { version = "0.8.0", default-features = false, features = [
+  "rust_1_61",
+  "rust_1_65",
+] }
+embassy-net = { version = "0.4.0", features = ["dhcpv4", "tcp", "dns"] }
+static_cell = { version = "2.0.0", features = ["nightly"] }
+embassy-futures = "0.1.1"
+reqwless = "0.11.0"
+tap = "1.0.1"
+embedded-nal-async = "0.7.1"
+extension-traits = "1.0.1"
+enumflags2 = "0.7.9"
+
+
+[profile.dev]
+codegen-units = 1
+opt-level = 3
+
+[profile.release]
+debug = true
+codegen-units = 1
+opt-level = 3
