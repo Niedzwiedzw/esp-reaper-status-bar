@@ -2,7 +2,6 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use core::fmt::Write;
 use embassy_executor::Spawner;
 use embassy_net::{
     dns::DnsSocket,
@@ -27,11 +26,9 @@ use esp_wifi::{
 use hal::{
     clock::ClockControl, embassy, peripherals::Peripherals, prelude::*, timer::TimerGroup, Rng, IO,
 };
-use heapless::String;
 use log::error;
 use static_cell::make_static;
 use status_bar_display::MyMatrixDisplay;
-use tap::prelude::*;
 
 pub mod reaper_diagnostic_fetch;
 pub mod status_bar_display;

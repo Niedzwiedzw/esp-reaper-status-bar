@@ -1,6 +1,6 @@
 use super::Result;
-use crate::{Error, IntoWrapErrExt, WrapErrorExt, MAX_RESPONSE_SIZE, MAX_TRACK_COUNT};
-use core::{fmt::Write, str::FromStr};
+use crate::{IntoWrapErrExt, WrapErrorExt, MAX_RESPONSE_SIZE, MAX_TRACK_COUNT};
+use core::fmt::Write;
 use embedded_nal_async::{Dns, TcpConnect};
 use enumflags2::BitFlags;
 use esp_println::println;
