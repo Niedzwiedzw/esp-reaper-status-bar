@@ -18,7 +18,7 @@ use embassy_time::{
 use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi};
 use esp32_hal as hal;
 use esp_backtrace as _;
-use esp_println::{print, println};
+use esp_println::println;
 use esp_wifi::{
     initialize,
     wifi::{WifiController, WifiDevice, WifiEvent, WifiStaDevice, WifiState},
@@ -28,6 +28,7 @@ use hal::{
     clock::ClockControl, embassy, peripherals::Peripherals, prelude::*, timer::TimerGroup, Rng, IO,
 };
 use heapless::String;
+use log::error;
 use static_cell::make_static;
 use status_bar_display::MyMatrixDisplay;
 use tap::prelude::*;
@@ -35,38 +36,40 @@ use tap::prelude::*;
 pub mod reaper_diagnostic_fetch;
 pub mod status_bar_display;
 
+// const RX_BUFFER_SIZE: usize = BUFFER_SIZE;
+// const TX_BUFFER_SIZE: usize = BUFFER_SIZE;
+
+pub const MAX_TRACK_COUNT: usize = 64;
+
+const MAX_HEADER_SIZE: usize = 512;
+const MAX_TRACK_LINE_SIZE: usize = 128;
+
 pub const ESP_WIFI_SSID: &str = env!("ESP_WIFI_SSID");
 pub const ESP_WIFI_PASSWORD: &str = env!("ESP_WIFI_PASSWORD");
 pub const ESP_REAPER_BASE_URL: &str = env!("ESP_REAPER_BASE_URL");
+pub const MAX_RESPONSE_SIZE: usize = (MAX_TRACK_COUNT + 1) * MAX_TRACK_LINE_SIZE;
+pub const IO_BUFFER_SIZE: usize = MAX_HEADER_SIZE + MAX_RESPONSE_SIZE;
+pub const MAX_ERROR_SIZE: usize = 128;
 
-// const RX_BUFFER_SIZE: usize = BUFFER_SIZE;
-// const TX_BUFFER_SIZE: usize = BUFFER_SIZE;
-const IO_BUFFER_SIZE: usize = 1024 * 4;
-
-const MAX_ERROR_SIZE: usize = 128 * 2;
-pub type Error = heapless::String<MAX_ERROR_SIZE>;
+pub type Error = &'static str;
 pub type Result<T> = core::result::Result<T, Error>;
 
 #[extension_traits::extension(pub trait IntoWrapErrExt)]
 impl<T, E: core::fmt::Debug> core::result::Result<T, E> {
-    fn into_wrap_err(self, context: &str) -> Result<T> {
+    fn into_wrap_err(self, context: &'static str) -> Result<T> {
         self.map_err(|e| {
-            println!("wrapping error: {e:?}");
-            String::new().tap_mut(|string| {
-                write!(string, "{context} ([{e:?}])",).ok();
-            })
+            error!("ERROR: {e:?}");
+            context
         })
     }
 }
 
 #[extension_traits::extension(pub trait WrapErrorExt)]
 impl<T> Result<T> {
-    fn wrap_err(self, context: &str) -> Result<T> {
+    fn wrap_err(self, context: &'static str) -> Result<T> {
         self.map_err(|error| {
-            error.tap_mut(|previous| {
-                previous.push_str("\n").ok();
-                previous.push_str(context).ok();
-            })
+            error!("CAUSED BY: {error}");
+            context
         })
     }
 }
@@ -169,10 +172,11 @@ async fn actual_main(
             .and_then(|out| out)
             .wrap_err("fetching reaper status")
             .and_then(|status| {
-                println!("OK: {:?} :: ", status.play_state);
-                status.tracks.iter().for_each(|track| {
-                    print!("{} ", track.last_meter_peak);
-                });
+                println!(
+                    "play state: {:?}\ttrack_count:{}",
+                    status.play_state,
+                    status.tracks.len()
+                );
                 display.draw_state(status)
             })?;
         Timer::after(Duration::from_millis(500)).await;
@@ -224,13 +228,15 @@ async fn connection(mut controller: WifiController<'static>) {
         }
         if !matches!(controller.is_started(), Ok(true)) {
             let client_config = Configuration::Client(ClientConfiguration {
-                ssid: ESP_WIFI_SSID.try_into().unwrap(),
-                password: ESP_WIFI_PASSWORD.try_into().unwrap(),
+                ssid: ESP_WIFI_SSID.try_into().expect("bad ssid"),
+                password: ESP_WIFI_PASSWORD.try_into().expect("bad password"),
                 ..Default::default()
             });
-            controller.set_configuration(&client_config).unwrap();
+            controller
+                .set_configuration(&client_config)
+                .expect("setting configuration");
             println!("Starting wifi");
-            controller.start().await.unwrap();
+            controller.start().await.expect("starting controller");
             println!("Wifi started!");
         }
         println!("About to connect...");

@@ -69,7 +69,7 @@ embedded-graphics = "0.8.1"
 # hub75 = { git = "https://github.com/david-sawatzke/hub75-rs", rev = "ba1eaa6", features = [
 #   "size-64x64",
 # ] }
-hub75 = { path = "/home/niedzwiedz/Programming/hub75-rs", features = [
+hub75 = { git = "https://github.com/Niedzwiedzw/hub75-rs", rev = "30f2aa6", features = [
   "size-64x64",
 ] }
 embedded-hal = "0.2"

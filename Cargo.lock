@@ -1373,6 +1373,7 @@ checksum = "d897f394bad6a705d5f4104762e116a75639e470d80901eed05a860a95cb1904"
 [[package]]
 name = "hub75"
 version = "0.1.1"
+source = "git+https://github.com/Niedzwiedzw/hub75-rs?rev=30f2aa6#30f2aa62279669f9cf97149f450b2b0f7bdbab8b"
 dependencies = [
  "embedded-graphics-core",
  "embedded-hal 0.2.7",

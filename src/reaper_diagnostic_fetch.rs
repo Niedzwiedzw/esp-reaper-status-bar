@@ -1,5 +1,5 @@
 use super::Result;
-use crate::{Error, IntoWrapErrExt, WrapErrorExt};
+use crate::{Error, IntoWrapErrExt, WrapErrorExt, MAX_RESPONSE_SIZE, MAX_TRACK_COUNT};
 use core::{fmt::Write, str::FromStr};
 use embedded_nal_async::{Dns, TcpConnect};
 use enumflags2::BitFlags;
@@ -46,7 +46,6 @@ where
         .into_wrap_err("building url string")?;
         println!("fetching status from [{url}]");
         let response = {
-            const MAX_RESPONSE_SIZE: usize = (MAX_TRACK_COUNT + 1) * 128;
             let mut buffer = [0; MAX_RESPONSE_SIZE];
             println!("buffer initialized");
             self.http_resource
@@ -90,18 +89,14 @@ where
                         .and_then(|(marker, rest)| marker.eq("TRANSPORT").then_some(rest).ok_or("expected TRANSPORT"))
                         .and_then(|transport| transport.split('\t').next().ok_or("empty transport?"))
                         .into_wrap_err("parsing TRANSPORT")
-                        .map(|play_state| play_state.trim())
-                        .and_then(|play_state| {
-                            play_state
+                        .and_then(|play_state| play_state
                                 .parse::<u8>()
-                                .into_wrap_err("parsing play_state value: ")
-                                .wrap_err(play_state)
+                                .into_wrap_err("parsing play_state value")
                                 .and_then(|repr| {
                                     PlayState::from_repr(repr)
                                         .ok_or("invalid repr for playstate")
                                         .into_wrap_err("parsing playstate")
-                                })
-                        })
+                                }))
                         .and_then(|play_state| {
                             lines.map(|line| -> Result<TrackData> {
                             match line
@@ -138,7 +133,7 @@ where
                                         last_meter_pos,
                                     })
                                 }
-                                _ => Err(Error::from_str("come on... forgot to change the input size?").expect("Bad string for error")),
+                                _ => Err("come on... forgot to change the input size?"),
                             }
                         })
                         .take(MAX_TRACK_COUNT)
@@ -204,5 +199,3 @@ pub enum TrackFlags {
     RecordMonitoringAuto = 256,
     Unknown1 = 512,
 }
-
-pub const MAX_TRACK_COUNT: usize = 64;

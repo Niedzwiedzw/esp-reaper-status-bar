@@ -79,15 +79,16 @@ impl MyMatrixDisplay {
             io.pins.gpio19.into_push_pull_output(), // lat,
             io.pins.gpio18.into_push_pull_output(), // oe
         );
-        let mut display = hub75::Hub75::<_>::new(pins, 4);
+        let display = hub75::Hub75::<_>::new(pins, 4);
 
         Ok(Self(display))
     }
 
     pub fn draw_state(&mut self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
-        let fill = PrimitiveStyle::with_fill(Rgb565::new(30, 80, 120));
+        println!("drawing state");
+        let fill = PrimitiveStyle::with_fill(Rgb565::new(255, 255, 255));
 
-        Rectangle::new(Point::new(5, 5), Size::new(16, 16))
+        Rectangle::new(Point::new(1, 1), Size::new(2, 2))
             .into_styled(fill)
             .draw(&mut self.0)
             .into_wrap_err("drawing state")
