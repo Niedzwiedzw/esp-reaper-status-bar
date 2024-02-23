@@ -148,7 +148,7 @@ where
                                 play_state,
                                 tracks
                         })
-                        })
+                    })
                 })
         })
     }

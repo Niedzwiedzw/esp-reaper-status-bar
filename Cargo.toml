@@ -30,6 +30,7 @@ esp-wifi = { version = "0.3.0", features = [
   "async",
   "smoltcp",
   "phy-enable-usb",
+  "wifi-logs",
 ] }
 smoltcp = { version = "0.10.0", default-features = false, features = [
   "proto-igmp",

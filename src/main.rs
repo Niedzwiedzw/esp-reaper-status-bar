@@ -41,7 +41,7 @@ pub const ESP_REAPER_BASE_URL: &str = env!("ESP_REAPER_BASE_URL");
 // const TX_BUFFER_SIZE: usize = BUFFER_SIZE;
 const IO_BUFFER_SIZE: usize = 1024 * 8;
 
-const MAX_ERROR_SIZE: usize = 128 * 5;
+const MAX_ERROR_SIZE: usize = 128 * 2;
 pub type Error = heapless::String<MAX_ERROR_SIZE>;
 pub type Result<T> = core::result::Result<T, Error>;
 
@@ -51,13 +51,7 @@ impl<T, E: core::fmt::Debug> core::result::Result<T, E> {
         self.map_err(|e| {
             println!("wrapping error: {e:?}");
             String::new().tap_mut(|string| {
-                write!(
-                    string,
-                    "{context} ([{}])",
-                    core::any::type_name::<E>()
-                        .pipe(|name| name.split("::").last().unwrap_or(name))
-                )
-                .ok();
+                write!(string, "{context} ([{e:?}])",).ok();
             })
         })
     }
@@ -78,7 +72,7 @@ impl<T> Result<T> {
 type NetworkStack = &'static Stack<WifiDevice<'static, WifiStaDevice>>;
 
 async fn setup(spawner: Spawner) -> Result<NetworkStack> {
-    esp_println::logger::init_logger(log::LevelFilter::Info);
+    esp_println::logger::init_logger(log::LevelFilter::Warn);
     let peripherals = Peripherals::take();
 
     let system = peripherals.SYSTEM.split();
@@ -94,11 +88,11 @@ async fn setup(spawner: Spawner) -> Result<NetworkStack> {
         system.radio_clock_control,
         &clocks,
     )
-    .expect("initializing wifi");
+    .into_wrap_err("initializing wifi")?;
 
     let wifi = peripherals.WIFI;
     let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice)
-        .expect("initializing wifi interface");
+        .into_wrap_err("initializing wifi interface and controller")?;
 
     let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
     embassy::init(&clocks, timer_group0);
@@ -153,7 +147,7 @@ async fn actual_main(_spawner: Spawner, stack: NetworkStack) -> Result<()> {
         .wrap_err("building reaper client")?;
     println!("created an http client");
     loop {
-        with_timeout(Duration::from_millis(200), client.get_status())
+        with_timeout(Duration::from_millis(5000), client.get_status())
             .await
             .into_wrap_err("timeout occurred")
             .and_then(|out| out)
@@ -169,8 +163,18 @@ async fn actual_main(_spawner: Spawner, stack: NetworkStack) -> Result<()> {
     }
 }
 
+macro_rules! debug_env {
+    ($name:ident) => {{
+        let name = stringify!($name);
+        println!("{name}={value}", value = $name);
+    }};
+}
+
 #[main]
 async fn main(spawner: Spawner) -> ! {
+    debug_env!(ESP_WIFI_SSID);
+    debug_env!(ESP_WIFI_PASSWORD);
+    debug_env!(ESP_REAPER_BASE_URL);
     let stack = setup(spawner).await.expect("failed to setup network stack");
     loop {
         match actual_main(spawner, stack).await {
@@ -184,7 +188,6 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
-#[allow(clippy::single_match)]
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
     println!("start connection task");
@@ -194,41 +197,22 @@ async fn connection(mut controller: WifiController<'static>) {
             WifiState::StaConnected => {
                 // wait until we're no longer connected
                 controller.wait_for_event(WifiEvent::StaDisconnected).await;
+                println!("disconnected, reconecting");
                 Timer::after(Duration::from_millis(5000)).await
             }
-            _ => {
-                println!("connected");
-            }
+            _ => {}
         }
         if !matches!(controller.is_started(), Ok(true)) {
             let client_config = Configuration::Client(ClientConfiguration {
-                ssid: ESP_WIFI_SSID.try_into().expect("bad ssid"),
-                password: ESP_WIFI_PASSWORD.try_into().expect("bad password"),
+                ssid: ESP_WIFI_SSID.try_into().unwrap(),
+                password: ESP_WIFI_PASSWORD.try_into().unwrap(),
                 ..Default::default()
             });
-            controller
-                .set_configuration(&client_config)
-                .expect("bad controller configuration");
+            controller.set_configuration(&client_config).unwrap();
             println!("Starting wifi");
-            controller.start().await.expect("starting controller");
+            controller.start().await.unwrap();
             println!("Wifi started!");
         }
-
-        let (mut available_networks, found_networks) = controller
-            .scan_n::<16>()
-            .await
-            .expect("wifi scanning failed");
-        println!("found networks: {found_networks}");
-        available_networks.sort_unstable_by_key(|a| -a.signal_strength);
-        for (id, network) in available_networks.iter().enumerate() {
-            println!(
-                "{}. '{}' ({}dB)",
-                id + 1,
-                network.ssid,
-                network.signal_strength
-            );
-        }
-
         println!("About to connect...");
 
         match controller.connect().await {
