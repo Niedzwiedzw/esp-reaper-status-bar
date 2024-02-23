@@ -14,15 +14,16 @@ use hal::{
 
 type WiringPin<const INDEX: u8> = GpioPin<Output<PushPull>, INDEX>;
 
+#[allow(dead_code)]
 mod tests {
-    use super::*;
-
     use embedded_hal::digital::v2::OutputPin;
+    #[allow(clippy::extra_unused_type_parameters)]
     fn assert_output_pin<Pin: OutputPin>() {
         todo!()
     }
     fn assert_hub75_outputs<Outputs: hub75::Outputs>() {}
 
+    #[test]
     fn assert_output_pins() {
         assert_output_pin::<WiringPin<4>>();
         assert_output_pin::<WiringPin<2>>();
@@ -61,8 +62,7 @@ type MyConnectionPins = (
 //
 pub struct MyMatrixDisplay(hub75::Hub75<MyConnectionPins>);
 impl MyMatrixDisplay {
-    pub fn new(peripherals: &mut Peripherals) -> Result<Self> {
-        let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+    pub fn new(io: IO) -> Result<Self> {
         let pins: MyConnectionPins = (
             io.pins.gpio4.into_push_pull_output(),  // r1,
             io.pins.gpio2.into_push_pull_output(),  // g1,
@@ -84,7 +84,7 @@ impl MyMatrixDisplay {
         Ok(Self(display))
     }
 
-    pub fn draw_state(&self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
+    pub fn draw_state(&mut self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
         let fill = PrimitiveStyle::with_fill(Rgb565::new(30, 80, 120));
 
         Rectangle::new(Point::new(5, 5), Size::new(16, 16))

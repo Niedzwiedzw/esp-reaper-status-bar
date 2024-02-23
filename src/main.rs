@@ -25,10 +25,11 @@ use esp_wifi::{
     EspWifiInitFor,
 };
 use hal::{
-    clock::ClockControl, embassy, peripherals::Peripherals, prelude::*, timer::TimerGroup, Rng,
+    clock::ClockControl, embassy, peripherals::Peripherals, prelude::*, timer::TimerGroup, Rng, IO,
 };
 use heapless::String;
 use static_cell::make_static;
+use status_bar_display::MyMatrixDisplay;
 use tap::prelude::*;
 
 pub mod reaper_diagnostic_fetch;
@@ -71,18 +72,18 @@ impl<T> Result<T> {
 }
 
 type NetworkStack = &'static Stack<WifiDevice<'static, WifiStaDevice>>;
-#[derive(Clone, Copy)]
+
 struct GlobalContext {
     network_stack: NetworkStack,
-    display: &'static status_bar_display::MyMatrixDisplay,
+    display: status_bar_display::MyMatrixDisplay,
 }
 
 async fn setup(spawner: Spawner) -> Result<GlobalContext> {
     esp_println::logger::init_logger(log::LevelFilter::Warn);
-    let mut peripherals = Peripherals::take();
-    let display = crate::status_bar_display::MyMatrixDisplay::new(&mut peripherals)
-        .wrap_err("initializing display")
-        .map(|v| &*make_static!(v))?;
+    let peripherals = Peripherals::take();
+    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+    let display =
+        crate::status_bar_display::MyMatrixDisplay::new(io).wrap_err("initializing display")?;
     let system = peripherals.SYSTEM.split();
     let clocks = ClockControl::max(system.clock_control).freeze();
     // #[cfg(target_arch = "xtensa")]
@@ -132,10 +133,8 @@ async fn setup(spawner: Spawner) -> Result<GlobalContext> {
 
 async fn actual_main(
     _spawner: Spawner,
-    GlobalContext {
-        network_stack,
-        display,
-    }: GlobalContext,
+    network_stack: NetworkStack,
+    display: &mut MyMatrixDisplay,
 ) -> Result<()> {
     loop {
         if network_stack.is_link_up() {
@@ -169,7 +168,7 @@ async fn actual_main(
             .into_wrap_err("timeout occurred")
             .and_then(|out| out)
             .wrap_err("fetching reaper status")
-            .and_then(move |status| {
+            .and_then(|status| {
                 println!("OK: {:?} :: ", status.play_state);
                 status.tracks.iter().for_each(|track| {
                     print!("{} ", track.last_meter_peak);
@@ -192,9 +191,12 @@ async fn main(spawner: Spawner) -> ! {
     debug_env!(ESP_WIFI_SSID);
     debug_env!(ESP_WIFI_PASSWORD);
     debug_env!(ESP_REAPER_BASE_URL);
-    let global_context = setup(spawner).await.expect("failed to setup network stack");
+    let GlobalContext {
+        network_stack,
+        mut display,
+    } = setup(spawner).await.expect("failed to setup network stack");
     loop {
-        match actual_main(spawner, global_context).await {
+        match actual_main(spawner, network_stack, &mut display).await {
             Ok(_) => println!("app just finished"),
             Err(message) => {
                 println!("ERROR: {message}. (restarting)");
@@ -205,6 +207,7 @@ async fn main(spawner: Spawner) -> ! {
     }
 }
 
+#[allow(clippy::single_match)]
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
     println!("start connection task");
