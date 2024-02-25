@@ -1,9 +1,9 @@
+use super::println;
 use super::Result;
 use crate::{IntoWrapErrExt, WrapErrorExt, MAX_RESPONSE_SIZE, MAX_TRACK_COUNT};
 use core::fmt::Write;
 use embedded_nal_async::{Dns, TcpConnect};
 use enumflags2::BitFlags;
-use esp_println::println;
 use heapless::{String, Vec};
 use reqwless::{
     client::{HttpClient, HttpResource},

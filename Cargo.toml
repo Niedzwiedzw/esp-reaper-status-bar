@@ -74,6 +74,10 @@ hub75 = { git = "https://github.com/Niedzwiedzw/hub75-rs", rev = "30f2aa6", feat
 ] }
 embedded-hal = "0.2"
 
+[features]
+default = []
+release-mode = ["esp-println/no-op"]
+
 [profile.dev]
 codegen-units = 1
 opt-level = 3

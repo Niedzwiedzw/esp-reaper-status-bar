@@ -1,5 +1,4 @@
 use self::reaper_diagnostic_fetch::ReaperStatus;
-
 use super::*;
 use embedded_graphics::{
     geometry::{Point, Size},
@@ -25,70 +24,96 @@ mod tests {
 
     #[test]
     fn assert_output_pins() {
-        assert_output_pin::<WiringPin<4>>();
-        assert_output_pin::<WiringPin<2>>();
-        assert_output_pin::<WiringPin<32>>();
-        assert_output_pin::<WiringPin<33>>();
-        assert_output_pin::<WiringPin<25>>();
-        assert_output_pin::<WiringPin<26>>();
-        assert_output_pin::<WiringPin<27>>();
-        assert_output_pin::<WiringPin<14>>();
-        assert_output_pin::<WiringPin<12>>();
-        assert_output_pin::<WiringPin<13>>();
-        assert_output_pin::<WiringPin<5>>();
-        assert_output_pin::<WiringPin<21>>();
-        assert_output_pin::<WiringPin<19>>();
-        assert_output_pin::<WiringPin<18>>();
+        assert_output_pin::<WiringPin<34>>(); // r1,
+        assert_output_pin::<WiringPin<35>>(); // g1,
+        assert_output_pin::<WiringPin<32>>(); // b1,
+                                              // ------------- GND
+        assert_output_pin::<WiringPin<33>>(); // r2,
+        assert_output_pin::<WiringPin<25>>(); // g2,
+        assert_output_pin::<WiringPin<26>>(); // b2,
+        assert_output_pin::<WiringPin<14>>(); // a,
+        assert_output_pin::<WiringPin<12>>(); // b,
+        assert_output_pin::<WiringPin<13>>(); // c,
+                                              // ------------- GND
+        assert_output_pin::<WiringPin<23>>(); // d,
+        assert_output_pin::<WiringPin<27>>(); // e,
+        assert_output_pin::<WiringPin<22>>(); // clk,
+        assert_output_pin::<WiringPin<21>>(); // lat,
+        assert_output_pin::<WiringPin<19>>(); // oe
         assert_hub75_outputs::<MyConnectionPins>()
     }
 }
-
 type MyConnectionPins = (
-    WiringPin<4>,  // r1,
-    WiringPin<2>,  // g1,
-    WiringPin<32>, // b1,
-    WiringPin<33>, // r2,
-    WiringPin<25>, // g2,
-    WiringPin<26>, // b2,
-    WiringPin<27>, // a,
-    WiringPin<14>, // b,
-    WiringPin<12>, // c,
-    WiringPin<13>, // d,
-    WiringPin<5>,  // e,
-    WiringPin<21>, // clk,
-    WiringPin<19>, // lat,
-    WiringPin<18>, // oe
+    WiringPin<25>, // R1
+    WiringPin<26>, // G1
+    WiringPin<27>, // BL1
+    WiringPin<14>, // R2
+    WiringPin<12>, // G2
+    WiringPin<13>, // BL2
+    WiringPin<23>, // CH_A
+    WiringPin<19>, // CH_B
+    WiringPin<5>,  // CH_C
+    WiringPin<17>, // CH_D
+    WiringPin<32>, // CH_E
+    WiringPin<16>, // CLK
+    WiringPin<4>,  // LAT
+    WiringPin<15>, // OE
 );
+
+// type MyConnectionPins = (
+//     WiringPin<18>, // r1,
+//     WiringPin<5>,  // g1,
+//     WiringPin<32>, // b1,
+//     // ------------- GND
+//     WiringPin<33>, // r2,
+//     WiringPin<25>, // g2,
+//     WiringPin<26>, // b2,
+//     WiringPin<14>, // a,
+//     WiringPin<12>, // b,
+//     WiringPin<13>, // c,
+//     // ------------- GND
+//     WiringPin<23>, // d,
+//     WiringPin<27>, // e,
+//     WiringPin<22>, // clk,
+//     WiringPin<21>, // lat,
+//     WiringPin<19>, // oe
+// );
 //
 pub struct MyMatrixDisplay(hub75::Hub75<MyConnectionPins>);
+fn my_connection_pins(io: IO) -> MyConnectionPins {
+    (
+        io.pins.gpio25.into_push_pull_output(), // r1,
+        io.pins.gpio26.into_push_pull_output(), // g1,
+        io.pins.gpio27.into_push_pull_output(), // b1,
+        // ------------- GND
+        io.pins.gpio14.into_push_pull_output(), // r2,
+        io.pins.gpio12.into_push_pull_output(), // g2,
+        io.pins.gpio13.into_push_pull_output(), // b2,
+        io.pins.gpio23.into_push_pull_output(), // a,
+        io.pins.gpio19.into_push_pull_output(), // b,
+        io.pins.gpio5.into_push_pull_output(),  // c,
+        // ------------- GND
+        io.pins.gpio17.into_push_pull_output(), // d,
+        io.pins.gpio32.into_push_pull_output(), // e,
+        io.pins.gpio16.into_push_pull_output(), // clk,
+        io.pins.gpio4.into_push_pull_output(),  // lat,
+        io.pins.gpio15.into_push_pull_output(), // oe
+    )
+}
 impl MyMatrixDisplay {
     pub fn new(io: IO) -> Result<Self> {
-        let pins: MyConnectionPins = (
-            io.pins.gpio4.into_push_pull_output(),  // r1,
-            io.pins.gpio2.into_push_pull_output(),  // g1,
-            io.pins.gpio32.into_push_pull_output(), // b1,
-            io.pins.gpio33.into_push_pull_output(), // r2,
-            io.pins.gpio25.into_push_pull_output(), // g2,
-            io.pins.gpio26.into_push_pull_output(), // b2,
-            io.pins.gpio27.into_push_pull_output(), // a,
-            io.pins.gpio14.into_push_pull_output(), // b,
-            io.pins.gpio12.into_push_pull_output(), // c,
-            io.pins.gpio13.into_push_pull_output(), // d,
-            io.pins.gpio5.into_push_pull_output(),  // e,
-            io.pins.gpio21.into_push_pull_output(), // clk,
-            io.pins.gpio19.into_push_pull_output(), // lat,
-            io.pins.gpio18.into_push_pull_output(), // oe
-        );
+        let pins = my_connection_pins(io);
         let display = hub75::Hub75::<_>::new(pins, 4);
 
         Ok(Self(display))
     }
 
-    pub fn draw_state(&mut self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
-        println!("drawing state");
+    pub fn draw_state(&mut self) -> Result<()> {
+        // pub fn draw_state(&mut self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
+        // println!("drawing state");
         let fill = PrimitiveStyle::with_fill(Rgb565::new(255, 255, 255));
 
-        Rectangle::new(Point::new(1, 1), Size::new(2, 2))
+        Rectangle::new(Point::new(1, 1), Size::new(3, 3))
             .into_styled(fill)
             .draw(&mut self.0)
             .into_wrap_err("drawing state")

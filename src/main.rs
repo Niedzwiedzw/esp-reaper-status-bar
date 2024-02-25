@@ -174,7 +174,10 @@ async fn actual_main(
                     status.play_state,
                     status.tracks.len()
                 );
-                display.draw_state(status)
+                loop {
+                    // display.draw_state(status).ok();
+                    display.draw_state().ok();
+                }
             })?;
         Timer::after(Duration::from_millis(500)).await;
     }
