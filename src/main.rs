@@ -15,6 +15,7 @@ use embassy_time::{
     Timer,
 };
 use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi};
+use embedded_wrap_err::{IntoWrapErrExt as _, Result, WrapErrorExt as _};
 use esp32_hal as hal;
 use esp_backtrace as _;
 use esp_println::println;
@@ -24,9 +25,9 @@ use esp_wifi::{
     EspWifiInitFor,
 };
 use hal::{
-    clock::ClockControl, embassy, peripherals::Peripherals, prelude::*, timer::TimerGroup, Rng, IO,
+    clock::ClockControl, embassy, peripherals::Peripherals, prelude::*, timer::TimerGroup, Delay,
+    Rng, IO,
 };
-use log::error;
 use static_cell::make_static;
 use status_bar_display::MyMatrixDisplay;
 
@@ -48,34 +49,12 @@ pub const MAX_RESPONSE_SIZE: usize = (MAX_TRACK_COUNT + 1) * MAX_TRACK_LINE_SIZE
 pub const IO_BUFFER_SIZE: usize = MAX_HEADER_SIZE + MAX_RESPONSE_SIZE;
 pub const MAX_ERROR_SIZE: usize = 128;
 
-pub type Error = &'static str;
-pub type Result<T> = core::result::Result<T, Error>;
-
-#[extension_traits::extension(pub trait IntoWrapErrExt)]
-impl<T, E: core::fmt::Debug> core::result::Result<T, E> {
-    fn into_wrap_err(self, context: &'static str) -> Result<T> {
-        self.map_err(|e| {
-            error!("ERROR: {e:?}");
-            context
-        })
-    }
-}
-
-#[extension_traits::extension(pub trait WrapErrorExt)]
-impl<T> Result<T> {
-    fn wrap_err(self, context: &'static str) -> Result<T> {
-        self.map_err(|error| {
-            error!("CAUSED BY: {error}");
-            context
-        })
-    }
-}
-
 type NetworkStack = &'static Stack<WifiDevice<'static, WifiStaDevice>>;
 
 struct GlobalContext {
     network_stack: NetworkStack,
     display: status_bar_display::MyMatrixDisplay,
+    delay: Delay,
 }
 
 async fn setup(spawner: Spawner) -> Result<GlobalContext> {
@@ -118,6 +97,8 @@ async fn setup(spawner: Spawner) -> Result<GlobalContext> {
         seed
     ));
 
+    let delay = Delay::new(&clocks);
+
     spawner
         .spawn(connection(controller))
         .into_wrap_err("spawning connection controller")?;
@@ -128,6 +109,7 @@ async fn setup(spawner: Spawner) -> Result<GlobalContext> {
     Ok(GlobalContext {
         network_stack: stack,
         display,
+        delay,
     })
 }
 
@@ -135,7 +117,10 @@ async fn actual_main(
     _spawner: Spawner,
     network_stack: NetworkStack,
     display: &mut MyMatrixDisplay,
+    delay: &mut Delay,
 ) -> Result<()> {
+    // graphics_demo(delay, display)?;
+
     loop {
         if network_stack.is_link_up() {
             break;
@@ -169,17 +154,18 @@ async fn actual_main(
             .and_then(|out| out)
             .wrap_err("fetching reaper status")
             .and_then(|status| {
-                println!(
-                    "play state: {:?}\ttrack_count:{}",
-                    status.play_state,
-                    status.tracks.len()
-                );
-                loop {
-                    // display.draw_state(status).ok();
-                    display.draw_state().ok();
-                }
+                // println!(
+                //     "play state: {:?}\ttrack_count:{}",
+                //     status.play_state,
+                //     status.tracks.len()
+                // );
+                // loop {
+                // display.draw_state(status).ok();
+                display.draw_state(delay, &status)
+
+                // }
             })?;
-        Timer::after(Duration::from_millis(500)).await;
+        Timer::after(Duration::from_millis(50)).await;
     }
 }
 
@@ -198,9 +184,10 @@ async fn main(spawner: Spawner) -> ! {
     let GlobalContext {
         network_stack,
         mut display,
+        mut delay,
     } = setup(spawner).await.expect("failed to setup network stack");
     loop {
-        match actual_main(spawner, network_stack, &mut display).await {
+        match actual_main(spawner, network_stack, &mut display, &mut delay).await {
             Ok(_) => println!("app just finished"),
             Err(message) => {
                 println!("ERROR: {message}. (restarting)");

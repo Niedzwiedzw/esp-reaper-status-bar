@@ -1,12 +1,13 @@
-[package]
-name = "esp-reaper-status-bar-rs"
-version = "0.1.0"
-authors = ["niedzwiedzw <niedzwiedzwo@gmail.com>"]
-edition = "2021"
-license = "MIT OR Apache-2.0"
+# WORKSPACE
+[workspace]
+members = ["embedded-wrap-err", "reaper", "renderer"]
+resolver = "2"
 
+[workspace.dependencies]
+embedded-wrap-err.path = "embedded-wrap-err"
+reaper.path = "reaper"
+renderer.path = "renderer"
 
-[dependencies]
 esp32-hal = { version = "0.18.0", features = [
   "embassy",
   "embassy-executor-thread",
@@ -69,10 +70,60 @@ embedded-graphics = "0.8.1"
 # hub75 = { git = "https://github.com/david-sawatzke/hub75-rs", rev = "ba1eaa6", features = [
 #   "size-64x64",
 # ] }
-hub75 = { git = "https://github.com/Niedzwiedzw/hub75-rs", rev = "30f2aa6", features = [
+# hub75 = { git = "https://github.com/Niedzwiedzw/hub75-rs", rev = "30f2aa6", features = [
+#   "size-64x64",
+# ] }
+hub75 = { path = "/home/niedzwiedz/Programming/hub75-rs", features = [
   "size-64x64",
 ] }
 embedded-hal = "0.2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["niedzwiedzw <niedzwiedzwo@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+
+# PACKAGE
+[package]
+name = "esp-reaper-status-bar-rs"
+version = "0.1.0"
+authors = ["niedzwiedzw <niedzwiedzwo@gmail.com>"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+
+[dependencies]
+esp32-hal.workspace = true
+esp-backtrace.workspace = true
+esp-println.workspace = true
+log.workspace = true
+esp-alloc.workspace = true
+esp-wifi.workspace = true
+smoltcp.workspace = true
+embedded-svc.workspace = true
+embedded-io.workspace = true
+heapless.workspace = true
+embassy-executor.workspace = true
+embassy-time.workspace = true
+esp-hal.workspace = true
+embassy-time-driver.workspace = true
+snafu.workspace = true
+embassy-net.workspace = true
+static_cell.workspace = true
+embassy-futures.workspace = true
+reqwless.workspace = true
+tap.workspace = true
+embedded-nal-async.workspace = true
+extension-traits.workspace = true
+enumflags2.workspace = true
+embedded-graphics.workspace = true
+hub75.workspace = true
+embedded-hal.workspace = true
+embedded-wrap-err.workspace = true
+renderer.workspace = true
+reaper.workspace = true
 
 [features]
 default = []

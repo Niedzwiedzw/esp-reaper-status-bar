@@ -283,9 +283,9 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.20.7"
+version = "0.20.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a5d17510e4a1a87f323de70b7b1eaac1ee0e37866c6720b2d279452d0edf389"
+checksum = "54e36fcd13ed84ffdfda6f5be89b31287cbb80c439841fe69e04841435464391"
 dependencies = [
  "darling_core",
  "darling_macro",
@@ -293,9 +293,9 @@ dependencies = [
 
 [[package]]
 name = "darling_core"
-version = "0.20.7"
+version = "0.20.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a98eea36a7ff910fa751413d0895551143a8ea41d695d9798ec7d665df7f7f5e"
+checksum = "9c2cf1c23a687a1feeb728783b993c4e1ad83d99f351801977dd809b48d0a70f"
 dependencies = [
  "fnv",
  "ident_case",
@@ -307,9 +307,9 @@ dependencies = [
 
 [[package]]
 name = "darling_macro"
-version = "0.20.7"
+version = "0.20.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6a366a3f90c5d59a4b91169775f88e52e8f71a0e7804cc98a8db2932cf4ed57"
+checksum = "a668eda54683121533a393014d8692171709ff57a7d61f187b6e782719f8933f"
 dependencies = [
  "darling_core",
  "quote",
@@ -629,6 +629,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-wrap-err"
+version = "0.1.0"
+dependencies = [
+ "extension-traits",
+ "log",
+]
+
+[[package]]
 name = "enum-as-inner"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -836,6 +844,7 @@ dependencies = [
  "embedded-io",
  "embedded-nal-async",
  "embedded-svc",
+ "embedded-wrap-err",
  "enumflags2",
  "esp-alloc",
  "esp-backtrace",
@@ -847,6 +856,8 @@ dependencies = [
  "heapless 0.8.0",
  "hub75",
  "log",
+ "reaper",
+ "renderer",
  "reqwless",
  "smoltcp 0.10.0",
  "snafu",
@@ -1373,7 +1384,6 @@ checksum = "d897f394bad6a705d5f4104762e116a75639e470d80901eed05a860a95cb1904"
 [[package]]
 name = "hub75"
 version = "0.1.1"
-source = "git+https://github.com/Niedzwiedzw/hub75-rs?rev=30f2aa6#30f2aa62279669f9cf97149f450b2b0f7bdbab8b"
 dependencies = [
  "embedded-graphics-core",
  "embedded-hal 0.2.7",
@@ -1745,6 +1755,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 
 [[package]]
+name = "reaper"
+version = "0.1.0"
+dependencies = [
+ "embedded-wrap-err",
+ "enumflags2",
+ "heapless 0.8.0",
+ "tap",
+]
+
+[[package]]
 name = "regex"
 version = "1.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1772,6 +1792,19 @@ name = "regex-syntax"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08c74e62047bb2de4ff487b251e4a92e24f48745648451635cec7d591162d9f"
+
+[[package]]
+name = "renderer"
+version = "0.1.0"
+dependencies = [
+ "embedded-graphics",
+ "embedded-hal 1.0.0",
+ "embedded-wrap-err",
+ "enumflags2",
+ "extension-traits",
+ "reaper",
+ "tap",
+]
 
 [[package]]
 name = "reqwless"

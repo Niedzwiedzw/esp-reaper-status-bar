@@ -1,15 +1,10 @@
-use self::reaper_diagnostic_fetch::ReaperStatus;
 use super::*;
-use embedded_graphics::{
-    geometry::{Point, Size},
-    pixelcolor::Rgb565,
-    primitives::{Primitive as _, PrimitiveStyle, Rectangle},
-    Drawable as _,
-};
 use hal::{
     gpio::{GpioPin, Output, PushPull},
     IO,
 };
+use reaper::ReaperStatus;
+use renderer::ReaperStatusRenderExt;
 
 type WiringPin<const INDEX: u8> = GpioPin<Output<PushPull>, INDEX>;
 
@@ -100,22 +95,22 @@ fn my_connection_pins(io: IO) -> MyConnectionPins {
         io.pins.gpio15.into_push_pull_output(), // oe
     )
 }
+
 impl MyMatrixDisplay {
     pub fn new(io: IO) -> Result<Self> {
         let pins = my_connection_pins(io);
-        let display = hub75::Hub75::<_>::new(pins, 4);
+        let display = hub75::Hub75::<_>::new(pins, 8);
 
         Ok(Self(display))
     }
 
-    pub fn draw_state(&mut self) -> Result<()> {
-        // pub fn draw_state(&mut self, ReaperStatus { play_state, tracks }: ReaperStatus) -> Result<()> {
-        // println!("drawing state");
-        let fill = PrimitiveStyle::with_fill(Rgb565::new(255, 255, 255));
-
-        Rectangle::new(Point::new(1, 1), Size::new(3, 3))
-            .into_styled(fill)
-            .draw(&mut self.0)
-            .into_wrap_err("drawing state")
+    pub fn draw_state(
+        &mut self,
+        delay: &mut Delay,
+        status: &ReaperStatus<MAX_TRACK_COUNT>,
+    ) -> Result<()> {
+        status
+            .render(&mut self.0)
+            .and_then(|_| self.0.output(delay).into_wrap_err("sending output failed"))
     }
 }
