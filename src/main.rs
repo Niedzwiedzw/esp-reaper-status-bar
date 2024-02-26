@@ -8,14 +8,17 @@ use embassy_net::{
     tcp::client::{TcpClient, TcpClientState},
     Config, Stack, StackResources,
 };
-use embassy_time::{
-    with_timeout,
-    // with_timeout,
-    Duration,
-    Timer,
+use embassy_sync::channel::{Channel, Sender};
+use embassy_sync::{
+    blocking_mutex::{raw::CriticalSectionRawMutex, CriticalSectionMutex},
+    channel::Receiver,
 };
-use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi};
-use embedded_wrap_err::{IntoWrapErrExt as _, Result, WrapErrorExt as _};
+use embassy_time::{with_timeout, Duration, Ticker, Timer};
+use embedded_svc::{
+    channel,
+    wifi::{ClientConfiguration, Configuration, Wifi},
+};
+use embedded_wrap_err::{IntoWrapErrExt, Result, WrapErrorExt as _};
 use esp32_hal as hal;
 use esp_backtrace as _;
 use esp_println::println;
@@ -28,8 +31,12 @@ use hal::{
     clock::ClockControl, embassy, peripherals::Peripherals, prelude::*, timer::TimerGroup, Delay,
     Rng, IO,
 };
+use log::error;
+use reaper::ReaperStatus;
+use renderer::ReaperStatusRenderExt;
 use static_cell::make_static;
 use status_bar_display::MyMatrixDisplay;
+use tap::Pipe;
 
 pub mod reaper_diagnostic_fetch;
 pub mod status_bar_display;
@@ -49,12 +56,44 @@ pub const MAX_RESPONSE_SIZE: usize = (MAX_TRACK_COUNT + 1) * MAX_TRACK_LINE_SIZE
 pub const IO_BUFFER_SIZE: usize = MAX_HEADER_SIZE + MAX_RESPONSE_SIZE;
 pub const MAX_ERROR_SIZE: usize = 128;
 
+const MAX_MESSAGE_SIZE: usize = 8;
+
+static REAPER_STATE_CHANNEL: Channel<
+    CriticalSectionRawMutex,
+    ReaperStatus<MAX_TRACK_COUNT>,
+    MAX_MESSAGE_SIZE,
+> = Channel::new();
+
 type NetworkStack = &'static Stack<WifiDevice<'static, WifiStaDevice>>;
 
 struct GlobalContext {
     network_stack: NetworkStack,
-    display: status_bar_display::MyMatrixDisplay,
-    delay: Delay,
+}
+
+#[embassy_executor::task]
+async fn keep_redrawing_screen(
+    updates: Receiver<
+        'static,
+        CriticalSectionRawMutex,
+        ReaperStatus<MAX_TRACK_COUNT>,
+        MAX_MESSAGE_SIZE,
+    >,
+    mut display: MyMatrixDisplay,
+) {
+    let mut buffer = ReaperStatus::default();
+
+    let mut ticker = Ticker::every(Duration::from_millis(50));
+
+    loop {
+        ticker.next().await;
+        if let Ok(update) = updates.try_receive() {
+            buffer = update;
+        }
+
+        if let Err(message) = display.draw_state(&buffer) {
+            error!("{message}");
+        }
+    }
 }
 
 async fn setup(spawner: Spawner) -> Result<GlobalContext> {
@@ -97,8 +136,6 @@ async fn setup(spawner: Spawner) -> Result<GlobalContext> {
         seed
     ));
 
-    let delay = Delay::new(&clocks);
-
     spawner
         .spawn(connection(controller))
         .into_wrap_err("spawning connection controller")?;
@@ -106,18 +143,27 @@ async fn setup(spawner: Spawner) -> Result<GlobalContext> {
         .spawn(net_task(stack))
         .into_wrap_err("spawning net task")?;
 
+    spawner
+        .spawn(keep_redrawing_screen(
+            REAPER_STATE_CHANNEL.receiver(),
+            display,
+        ))
+        .into_wrap_err("spawning redrawing loop")?;
+
     Ok(GlobalContext {
         network_stack: stack,
-        display,
-        delay,
     })
 }
 
 async fn actual_main(
     _spawner: Spawner,
     network_stack: NetworkStack,
-    display: &mut MyMatrixDisplay,
-    delay: &mut Delay,
+    sender: Sender<
+        'static,
+        CriticalSectionRawMutex,
+        ReaperStatus<MAX_TRACK_COUNT>,
+        MAX_MESSAGE_SIZE,
+    >,
 ) -> Result<()> {
     // graphics_demo(delay, display)?;
 
@@ -147,24 +193,15 @@ async fn actual_main(
         .await
         .wrap_err("building reaper client")?;
     println!("created an http client");
+
     loop {
-        with_timeout(Duration::from_millis(5000), client.get_status())
+        let status = with_timeout(Duration::from_millis(5000), client.get_status())
             .await
             .into_wrap_err("timeout occurred")
             .and_then(|out| out)
-            .wrap_err("fetching reaper status")
-            .and_then(|status| {
-                // println!(
-                //     "play state: {:?}\ttrack_count:{}",
-                //     status.play_state,
-                //     status.tracks.len()
-                // );
-                // loop {
-                // display.draw_state(status).ok();
-                display.draw_state(delay, &status)
+            .wrap_err("fetching reaper status")?;
+        sender.send(status).await;
 
-                // }
-            })?;
         Timer::after(Duration::from_millis(50)).await;
     }
 }
@@ -181,13 +218,10 @@ async fn main(spawner: Spawner) -> ! {
     debug_env!(ESP_WIFI_SSID);
     debug_env!(ESP_WIFI_PASSWORD);
     debug_env!(ESP_REAPER_BASE_URL);
-    let GlobalContext {
-        network_stack,
-        mut display,
-        mut delay,
-    } = setup(spawner).await.expect("failed to setup network stack");
+    let GlobalContext { network_stack } =
+        setup(spawner).await.expect("failed to setup network stack");
     loop {
-        match actual_main(spawner, network_stack, &mut display, &mut delay).await {
+        match actual_main(spawner, network_stack, REAPER_STATE_CHANNEL.sender()).await {
             Ok(_) => println!("app just finished"),
             Err(message) => {
                 println!("ERROR: {message}. (restarting)");

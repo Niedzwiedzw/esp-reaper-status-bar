@@ -1,6 +1,7 @@
 # WORKSPACE
 [workspace]
 members = ["embedded-wrap-err", "reaper", "renderer"]
+exclude = ["renderer-tester"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -124,6 +125,7 @@ embedded-hal.workspace = true
 embedded-wrap-err.workspace = true
 renderer.workspace = true
 reaper.workspace = true
+embassy-sync = { version = "0.5.0" }
 
 [features]
 default = []

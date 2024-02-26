@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 use embedded_wrap_err::{IntoWrapErrExt as _, Result, WrapErrorExt as _};
 use enumflags2::BitFlags;
@@ -86,9 +86,10 @@ pub struct TrackData {
     pub last_meter_pos: i16,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 #[repr(u8)]
 pub enum PlayState {
+    #[default]
     Stopped = 0,
     Playing = 1,
     Paused = 3,
@@ -108,7 +109,7 @@ impl PlayState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ReaperStatus<const MAX_TRACK_COUNT: usize> {
     pub play_state: PlayState,
     pub tracks: heapless::Vec<TrackData, MAX_TRACK_COUNT>,

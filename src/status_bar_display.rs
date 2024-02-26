@@ -104,13 +104,9 @@ impl MyMatrixDisplay {
         Ok(Self(display))
     }
 
-    pub fn draw_state(
-        &mut self,
-        delay: &mut Delay,
-        status: &ReaperStatus<MAX_TRACK_COUNT>,
-    ) -> Result<()> {
+    pub fn draw_state(&mut self, status: &ReaperStatus<MAX_TRACK_COUNT>) -> Result<()> {
         status
             .render(&mut self.0)
-            .and_then(|_| self.0.output(delay).into_wrap_err("sending output failed"))
+            .and_then(|_| self.0.output().into_wrap_err("sending output failed"))
     }
 }
