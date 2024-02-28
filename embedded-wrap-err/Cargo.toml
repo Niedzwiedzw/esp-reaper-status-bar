@@ -12,5 +12,6 @@ default = []
 std = []
 
 [dependencies]
+defmt.workspace = true
 extension-traits.workspace = true
-log.workspace = true
+heapless.workspace = true

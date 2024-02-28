@@ -1036,8 +1036,9 @@ dependencies = [
 name = "embedded-wrap-err"
 version = "0.1.0"
 dependencies = [
+ "defmt",
  "extension-traits",
- "log",
+ "heapless 0.8.0",
 ]
 
 [[package]]
@@ -2138,6 +2139,7 @@ dependencies = [
 name = "reaper"
 version = "0.1.0"
 dependencies = [
+ "defmt",
  "embedded-wrap-err",
  "enumflags2",
  "heapless 0.8.0",

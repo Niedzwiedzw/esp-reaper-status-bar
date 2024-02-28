@@ -10,6 +10,7 @@ default = []
 std = []
 
 [dependencies]
+defmt.workspace = true
 embedded-wrap-err.workspace = true
 enumflags2.workspace = true
 heapless.workspace = true
