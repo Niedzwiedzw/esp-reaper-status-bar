@@ -22,7 +22,6 @@ esp-backtrace = { version = "0.11.0", features = [
   "println",
 ] }
 esp-println = { version = "0.9.0", features = ["esp32", "log"] }
-log = { version = "0.4.20" }
 esp-alloc = { version = "0.3.0" }
 esp-wifi = { version = "0.3.0", features = [
   "esp32",
@@ -48,36 +47,106 @@ smoltcp = { version = "0.10.0", default-features = false, features = [
 ] }
 embedded-svc = { version = "0.27", default-features = false, features = [] }
 embedded-io = "0.6.1"
-heapless = { version = "0.8.0", default-features = false }
-embassy-executor = { version = "0.5.0", features = ["nightly"] }
-embassy-time = "0.3.0"
-esp-hal = { git = "https://github.com/esp-rs/esp-hal", rev = "9a95c0a", features = [
-  "esp32",
-] }
 embassy-time-driver = "0.1"
 snafu = { version = "0.8.0", default-features = false, features = [
   "rust_1_61",
   "rust_1_65",
 ] }
-embassy-net = { version = "0.4.0", features = ["dhcpv4", "tcp", "dns"] }
-static_cell = { version = "2.0.0", features = ["nightly"] }
-embassy-futures = "0.1.1"
+static_cell = { version = "2", features = ["nightly"] }
 reqwless = "0.11.0"
 tap = "1.0.1"
 embedded-nal-async = "0.7.1"
 extension-traits = "1.0.1"
 enumflags2 = "0.7.9"
-embedded-graphics = "0.8.1"
+embedded-graphics = "0.8"
 # hub75 = { git = "https://github.com/david-sawatzke/hub75-rs", rev = "ba1eaa6", features = [
 #   "size-64x64",
 # ] }
 # hub75 = { git = "https://github.com/Niedzwiedzw/hub75-rs", rev = "30f2aa6", features = [
 #   "size-64x64",
 # ] }
-hub75 = { path = "/home/niedzwiedz/Programming/hub75-rs", features = [
-  "size-64x64",
-] }
+# hub75 = { path = "/home/niedzwiedz/Programming/hub75-rs", features = [
+#   "size-64x64",
+# ] }
 embedded-hal = "0.2"
+embassy-embedded-hal = { version = "0.1", features = ["defmt"] }
+embassy-sync = { version = "0.5", features = ["defmt"] }
+embassy-executor = { version = "0.5.0", features = [
+  "task-arena-size-32768",
+  "arch-cortex-m",
+  "executor-thread",
+  "executor-interrupt",
+  "defmt",
+  "integrated-timers",
+] }
+embassy-time = { version = "0.3.0", features = [
+  "defmt",
+  "defmt-timestamp-uptime",
+] }
+embassy-rp = { version = "0.1", features = [
+  "defmt",
+  "unstable-pac",
+  "time-driver",
+  "critical-section-impl",
+] }
+embassy-usb = { version = "0.1.0", path = "../../embassy-usb", features = [
+  "defmt",
+] }
+embassy-net = { version = "0.4", features = [
+  "defmt",
+  "tcp",
+  "udp",
+  "dhcpv4",
+  "medium-ethernet",
+  "dns",
+] }
+embassy-net-wiznet = { version = "0.1.0", path = "../../embassy-net-wiznet", features = [
+  "defmt",
+] }
+embassy-futures = { version = "0.1" }
+embassy-usb-logger = { version = "0.1.0", path = "../../embassy-usb-logger" }
+cyw43 = { version = "0.1.0", path = "../../cyw43", features = [
+  "defmt",
+  "firmware-logs",
+] }
+cyw43-pio = { version = "0.1.0", path = "../../cyw43-pio", features = [
+  "defmt",
+  "overclock",
+] }
+
+defmt = "0.3"
+defmt-rtt = "0.4"
+fixed = "1.23.1"
+fixed-macro = "1.2"
+
+#cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
+cortex-m = { version = "0.7.6", features = ["inline-asm"] }
+cortex-m-rt = "0.7.0"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+futures = { version = "0.3.17", default-features = false, features = [
+  "async-await",
+  "cfg-target-has-atomic",
+  "unstable",
+] }
+display-interface-spi = "0.4.1"
+st7789 = "0.6.1"
+display-interface = "0.4.1"
+byte-slice-cast = { version = "1.2.0", default-features = false }
+smart-leds = "0.3.0"
+heapless = "0.8"
+usbd-hid = "0.7.0"
+
+embedded-hal-1 = { package = "embedded-hal", version = "1.0" }
+embedded-hal-async = "1.0"
+embedded-hal-bus = { version = "0.1", features = ["async"] }
+embedded-io-async = { version = "0.6.1", features = ["defmt-03"] }
+embedded-storage = { version = "0.3" }
+portable-atomic = { version = "1.5", features = ["critical-section"] }
+log = "0.4"
+pio-proc = "0.2"
+pio = "0.2.1"
+rand = { version = "0.8.5", default-features = false }
+
 
 [workspace.package]
 version = "0.1.0"
@@ -108,7 +177,6 @@ embedded-io.workspace = true
 heapless.workspace = true
 embassy-executor.workspace = true
 embassy-time.workspace = true
-esp-hal.workspace = true
 embassy-time-driver.workspace = true
 snafu.workspace = true
 embassy-net.workspace = true
@@ -120,12 +188,11 @@ embedded-nal-async.workspace = true
 extension-traits.workspace = true
 enumflags2.workspace = true
 embedded-graphics.workspace = true
-hub75.workspace = true
 embedded-hal.workspace = true
 embedded-wrap-err.workspace = true
 renderer.workspace = true
 reaper.workspace = true
-embassy-sync = { version = "0.5.0" }
+embassy-sync = "0.5.0"
 
 [features]
 default = []
