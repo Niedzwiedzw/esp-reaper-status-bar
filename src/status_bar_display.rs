@@ -1,4 +1,5 @@
 use super::*;
+use embedded_hal::blocking::delay::DelayUs;
 use embedded_wrap_err::WrapErrorExt;
 use renderer::ReaperStatusRenderExt;
 
@@ -107,12 +108,12 @@ fn to_output(pins: MyConnectionPins) -> MyOutputConnectionPins {
 
 impl MyMatrixDisplay {
     pub fn new(pins: MyConnectionPins) -> Result<Self> {
-        let display = hub75::Hub75::<_>::new(pins.pipe(to_output), 8);
+        let display = hub75::Hub75::<_>::new(pins.pipe(to_output), 1);
 
         Ok(Self(display))
     }
-    pub fn draw(&mut self) -> Result<()> {
-        self.0.output().into_wrap_err("displaying output")
+    pub fn draw(&mut self, delay: &mut impl DelayUs<u8>) -> Result<()> {
+        self.0.output(delay).into_wrap_err("displaying output")
     }
 
     pub fn update_display_data(&mut self, status: &ReaperStatus<MAX_TRACK_COUNT>) -> Result<()> {

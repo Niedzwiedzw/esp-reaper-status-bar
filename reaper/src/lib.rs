@@ -95,10 +95,28 @@ impl PlayState {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct ReaperStatus<const MAX_TRACK_COUNT: usize> {
     pub play_state: PlayState,
     pub tracks: heapless::Vec<TrackData, MAX_TRACK_COUNT>,
+}
+
+impl<const MAX_TRACK_COUNT: usize> core::default::Default for ReaperStatus<MAX_TRACK_COUNT> {
+    fn default() -> Self {
+        ReaperStatus {
+            play_state: Default::default(),
+            tracks: Vec::new().tap_mut(|tracks| {
+                (0..MAX_TRACK_COUNT)
+                    .map(|offset| TrackData {
+                        flags: Default::default(),
+                        last_meter_peak: -750 + 10 * (offset as i16),
+                        last_meter_pos: -250 + 10 * (offset as i16),
+                    })
+                    .try_for_each(|e| tracks.push(e))
+                    .expect("not enough space in vec")
+            }),
+        }
+    }
 }
 
 #[enumflags2::bitflags]

@@ -13,7 +13,7 @@ use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_sync::channel::{Channel, Sender};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Receiver};
-use embassy_time::{with_timeout, Duration, Ticker, Timer};
+use embassy_time::{with_timeout, Delay, Duration, Ticker, Timer};
 use embedded_wrap_err::{IntoWrapErrExt, Result, WrapErrorExt as _};
 use futures::FutureExt;
 use log::error;
@@ -120,6 +120,10 @@ static MY_MATRIX_DISPLAY: StaticCell<MyMatrixDisplay> = StaticCell::new();
 #[embassy_executor::task]
 async fn keep_redrawing_screen(updates: Receiver<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_COUNT>, display: &'static mut MyMatrixDisplay) {
     info!("screen task running");
+    let mut delay = Delay;
+    display
+        .update_display_data(&Default::default())
+        .expect("could not redraw even once");
     loop {
         info!("checking if there's some data");
         if let Ok(updated) = {
@@ -142,7 +146,7 @@ async fn keep_redrawing_screen(updates: Receiver<'static, CriticalSectionRawMute
 
         info!("starting to draw");
         if let Err(message) = {
-            let draw = display.draw();
+            let draw = display.draw(&mut delay);
             info!("draw finished");
             draw
         } {
