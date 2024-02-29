@@ -1,23 +1,43 @@
 use super::*;
+use embedded_wrap_err::WrapErrorExt;
 use renderer::ReaperStatusRenderExt;
 
 // type WiringPin<const INDEX: u8> = GpioPin<Output<PushPull>, INDEX>;
 
 type MyConnectionPins = (
-    Output<'static>, // R1
-    Output<'static>, // G1
-    Output<'static>, // BL1
-    Output<'static>, // R2
-    Output<'static>, // G2
-    Output<'static>, // BL2
-    Output<'static>, // CH_A
-    Output<'static>, // CH_B
-    Output<'static>, // CH_C
-    Output<'static>, // CH_D
-    Output<'static>, // CH_E
-    Output<'static>, // CLK
-    Output<'static>, // LAT
-    Output<'static>, // OE
+    embassy_rp::peripherals::PIN_2, // r1,
+    embassy_rp::peripherals::PIN_3, // g1,
+    embassy_rp::peripherals::PIN_4, // b1,
+    // -----------------------------// GND
+    embassy_rp::peripherals::PIN_5,  // r2,
+    embassy_rp::peripherals::PIN_8,  // g2,
+    embassy_rp::peripherals::PIN_9,  // b2,
+    embassy_rp::peripherals::PIN_10, // a,
+    embassy_rp::peripherals::PIN_16, // b,
+    embassy_rp::peripherals::PIN_18, // c,
+    // ------------------------------ GND
+    embassy_rp::peripherals::PIN_20, // d,
+    embassy_rp::peripherals::PIN_22, // e,
+    embassy_rp::peripherals::PIN_11, // clk,
+    embassy_rp::peripherals::PIN_12, // lat,
+    embassy_rp::peripherals::PIN_13, // oe
+);
+
+type MyOutputConnectionPins = (
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
+    Output<'static>,
 );
 
 // type MyConnectionPins = (
@@ -39,7 +59,7 @@ type MyConnectionPins = (
 //     WiringPin<19>, // oe
 // );
 //
-pub struct MyMatrixDisplay(hub75::Hub75<MyConnectionPins>);
+pub struct MyMatrixDisplay(hub75::Hub75<MyOutputConnectionPins>);
 // fn my_connection_pins(io: &'static Peripherals) -> MyConnectionPins {
 //     (
 //         Output::new(&io.PIN_25, Level::Low), // r1,
@@ -61,16 +81,41 @@ pub struct MyMatrixDisplay(hub75::Hub75<MyConnectionPins>);
 //     )
 // }
 
+fn to_output(pins: MyConnectionPins) -> MyOutputConnectionPins {
+    macro_rules! output {
+        ($pin:expr) => {
+            Output::new($pin, Level::Low)
+        };
+    }
+    (
+        output!(pins.0),
+        output!(pins.1),
+        output!(pins.2),
+        output!(pins.3),
+        output!(pins.4),
+        output!(pins.5),
+        output!(pins.6),
+        output!(pins.7),
+        output!(pins.8),
+        output!(pins.9),
+        output!(pins.10),
+        output!(pins.11),
+        output!(pins.12),
+        output!(pins.13),
+    )
+}
+
 impl MyMatrixDisplay {
     pub fn new(pins: MyConnectionPins) -> Result<Self> {
-        let display = hub75::Hub75::<_>::new(pins, 8);
+        let display = hub75::Hub75::<_>::new(pins.pipe(to_output), 8);
 
         Ok(Self(display))
     }
+    pub fn draw(&mut self) -> Result<()> {
+        self.0.output().into_wrap_err("displaying output")
+    }
 
-    pub fn draw_state(&mut self, status: &ReaperStatus<MAX_TRACK_COUNT>) -> Result<()> {
-        status
-            .render(&mut self.0)
-            .and_then(|_| self.0.output().into_wrap_err("sending output failed"))
+    pub fn update_display_data(&mut self, status: &ReaperStatus<MAX_TRACK_COUNT>) -> Result<()> {
+        status.render(&mut self.0).wrap_err("updating render data")
     }
 }

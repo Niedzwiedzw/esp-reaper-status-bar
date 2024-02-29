@@ -15,6 +15,7 @@ use embassy_sync::channel::{Channel, Sender};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Receiver};
 use embassy_time::{with_timeout, Duration, Ticker, Timer};
 use embedded_wrap_err::{IntoWrapErrExt, Result, WrapErrorExt as _};
+use futures::FutureExt;
 use log::error;
 use reaper::ReaperStatus;
 use static_cell::StaticCell;
@@ -35,21 +36,21 @@ bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
 });
 
-pub const MAX_TRACK_COUNT: usize = 64;
+const ESP_WIFI_SSID: &str = env!("ESP_WIFI_SSID");
+const ESP_WIFI_PASSWORD: &str = env!("ESP_WIFI_PASSWORD");
+const ESP_REAPER_BASE_URL: &str = env!("ESP_REAPER_BASE_URL");
 
 const MAX_HEADER_SIZE: usize = 512;
+const MAX_TRACK_COUNT: usize = 64;
 const MAX_TRACK_LINE_SIZE: usize = 128;
 
-pub const ESP_WIFI_SSID: &str = env!("ESP_WIFI_SSID");
-pub const ESP_WIFI_PASSWORD: &str = env!("ESP_WIFI_PASSWORD");
-pub const ESP_REAPER_BASE_URL: &str = env!("ESP_REAPER_BASE_URL");
-pub const MAX_RESPONSE_SIZE: usize = (MAX_TRACK_COUNT + 1) * MAX_TRACK_LINE_SIZE;
-pub const IO_BUFFER_SIZE: usize = MAX_HEADER_SIZE + MAX_RESPONSE_SIZE;
-pub const MAX_ERROR_SIZE: usize = 128;
+const MAX_RESPONSE_SIZE: usize = (MAX_TRACK_COUNT + 1) * MAX_TRACK_LINE_SIZE;
 
-const MAX_MESSAGE_SIZE: usize = 8;
+const IO_BUFFER_SIZE: usize = MAX_HEADER_SIZE + MAX_RESPONSE_SIZE;
 
-static REAPER_STATE_CHANNEL: Channel<CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE> = Channel::new();
+const MAX_MESSAGE_COUNT: usize = 8;
+
+static REAPER_STATE_CHANNEL: Channel<CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_COUNT> = Channel::new();
 
 #[cortex_m_rt::entry]
 fn main() -> ! {
@@ -58,29 +59,25 @@ fn main() -> ! {
     info!("peripherals OK");
 
     let display = {
-        macro_rules! output {
-            ($pin:expr) => {
-                Output::new($pin, Level::Low)
-            };
-        }
         MyMatrixDisplay::new((
-            peripherals.PIN_0.pipe(|p| output!(p)),
-            peripherals.PIN_1.pipe(|p| output!(p)),
-            peripherals.PIN_2.pipe(|p| output!(p)),
-            peripherals.PIN_3.pipe(|p| output!(p)),
-            peripherals.PIN_4.pipe(|p| output!(p)),
-            peripherals.PIN_5.pipe(|p| output!(p)),
-            peripherals.PIN_6.pipe(|p| output!(p)),
-            peripherals.PIN_7.pipe(|p| output!(p)),
-            peripherals.PIN_8.pipe(|p| output!(p)),
-            peripherals.PIN_9.pipe(|p| output!(p)),
-            peripherals.PIN_10.pipe(|p| output!(p)),
-            peripherals.PIN_11.pipe(|p| output!(p)),
-            peripherals.PIN_12.pipe(|p| output!(p)),
-            peripherals.PIN_13.pipe(|p| output!(p)),
+            peripherals.PIN_2,
+            peripherals.PIN_3,
+            peripherals.PIN_4,
+            peripherals.PIN_5,
+            peripherals.PIN_8,
+            peripherals.PIN_9,
+            peripherals.PIN_10,
+            peripherals.PIN_16,
+            peripherals.PIN_18,
+            peripherals.PIN_20,
+            peripherals.PIN_22,
+            peripherals.PIN_11,
+            peripherals.PIN_12,
+            peripherals.PIN_13,
         ))
         .wrap_err("creating matrix display")
         .pipe(|display| unwrap!(display))
+        .pipe(|display| MY_MATRIX_DISPLAY.init(display))
     };
     let wifi_setup_context = SetupWifiContext {
         pwr_pin: peripherals.PIN_23,
@@ -118,21 +115,38 @@ fn main() -> ! {
     }
 }
 
+static MY_MATRIX_DISPLAY: StaticCell<MyMatrixDisplay> = StaticCell::new();
+
 #[embassy_executor::task]
-async fn keep_redrawing_screen(updates: Receiver<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE>, mut display: MyMatrixDisplay) {
+async fn keep_redrawing_screen(updates: Receiver<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_COUNT>, display: &'static mut MyMatrixDisplay) {
     info!("screen task running");
-    let mut buffer = ReaperStatus::default();
-
-    let mut ticker = Ticker::every(Duration::from_millis(50));
-
     loop {
-        ticker.next().await;
-        if let Ok(update) = updates.try_receive() {
-            buffer = update;
+        info!("checking if there's some data");
+        if let Ok(updated) = {
+            let updates = updates.try_receive();
+            info!("checked");
+            updates
+        } {
+            match display
+                .update_display_data(&updated)
+                .wrap_err("received data but couldn't render")
+            {
+                Ok(_) => {
+                    info!("updated the screen");
+                }
+                Err(message) => {
+                    debug!("reason: {}", message);
+                }
+            }
         }
 
-        if let Err(message) = display.draw_state(&buffer) {
-            error!("{message}");
+        info!("starting to draw");
+        if let Err(message) = {
+            let draw = display.draw();
+            info!("draw finished");
+            draw
+        } {
+            error!("couldn't draw: {message}");
         }
     }
 }
@@ -221,10 +235,12 @@ async fn setup_wifi(
     Ok(stack)
 }
 
-async fn actual_main(_spawner: Spawner, stack: NetworkStack, sender: Sender<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE>) -> Result<()> {
+async fn actual_main(_spawner: Spawner, stack: NetworkStack, sender: Sender<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_COUNT>) -> Result<()> {
+    info!("the actual app logic task is starting");
     // graphics_demo(delay, display)?;
-
+    info!("creating a client state");
     let client_state = TcpClientState::<3, IO_BUFFER_SIZE, IO_BUFFER_SIZE>::new();
+    info!("creating a tcp client");
     let tcp_client = TcpClient::new(stack, &client_state);
     info!("created a tcp client");
     let dns_socket = DnsSocket::new(stack);
@@ -258,7 +274,7 @@ macro_rules! debug_env {
 
 use embassy_executor::Executor;
 
-static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> = embassy_rp::multicore::Stack::new();
+static mut CORE1_STACK: embassy_rp::multicore::Stack<{ 1024 * 4 }> = embassy_rp::multicore::Stack::new();
 static EXECUTOR0: StaticCell<Executor> = StaticCell::new();
 static EXECUTOR1: StaticCell<Executor> = StaticCell::new();
 
@@ -271,6 +287,7 @@ async fn embassy_main(spawner: Spawner, wifi_setup_context: SetupWifiContext) {
     let stack = setup_wifi(spawner, wifi_setup_context)
         .await
         .expect("failed to setup network stack");
+    info!("wifi setup correctly, starting the main task");
     loop {
         match actual_main(spawner, stack, REAPER_STATE_CHANNEL.sender()).await {
             Ok(_) => info!("app just finished"),

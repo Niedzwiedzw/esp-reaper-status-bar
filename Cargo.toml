@@ -6,7 +6,7 @@ resolver = "2"
 
 [workspace.dependencies]
 # drawing
-hub75-pio = { git = "https://github.com/kjagiello/hub75-pio-rs", rev = "262bca7", version = "0.1.0" }
+# hub75-pio = { git = "https://github.com/kjagiello/hub75-pio-rs", rev = "262bca7", version = "0.1.0" }
 
 
 # embassy

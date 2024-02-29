@@ -60,7 +60,7 @@ where
                             .map_err(|_| "response won't fit")
                     })
                 })
-                .and_then(|out| String::from_utf8(out).map_err(|_| "invalid utf8"))
+                .and_then(|out| String::from_utf8(out).into_wrap_err_dbg("invalid utf8"))
                 .into_wrap_err("reading response")?
         }
         .pipe_ref(|v| v.as_str().pipe(ReaperStatus::parse))
