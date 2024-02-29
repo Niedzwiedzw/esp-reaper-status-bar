@@ -120,15 +120,7 @@ async fn setup(spawner: Spawner) -> Result<NetworkStack> {
     let pwr = Output::new(peripherals.PIN_23, Level::Low);
     let cs = Output::new(peripherals.PIN_25, Level::High);
     let mut pio = Pio::new(peripherals.PIO0, Irqs);
-    let spi = PioSpi::new(
-        &mut pio.common,
-        pio.sm0,
-        pio.irq0,
-        cs,
-        peripherals.PIN_24,
-        peripherals.PIN_29,
-        peripherals.DMA_CH0,
-    );
+    let spi = PioSpi::new(&mut pio.common, pio.sm0, pio.irq0, cs, peripherals.PIN_24, peripherals.PIN_29, peripherals.DMA_CH0);
     // let display =
     //     crate::status_bar_display::MyMatrixDisplay::new(io).wrap_err("
     // initializing display")?;
@@ -145,12 +137,7 @@ async fn setup(spawner: Spawner) -> Result<NetworkStack> {
     // Generate random seed
     let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guarenteed to be random.
 
-    let stack = &*STACK.init(Stack::new(
-        net_device,
-        config,
-        RESOURCES.init(StackResources::<STACK_RESOURCES_COUNT>::new()),
-        seed,
-    ));
+    let stack = &*STACK.init(Stack::new(net_device, config, RESOURCES.init(StackResources::<STACK_RESOURCES_COUNT>::new()), seed));
     unwrap!(spawner.spawn(net_task(stack)));
 
     loop {
@@ -223,11 +210,7 @@ async fn setup(spawner: Spawner) -> Result<NetworkStack> {
     Ok(stack)
 }
 
-async fn actual_main(
-    _spawner: Spawner,
-    stack: NetworkStack,
-    sender: Sender<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE>,
-) -> Result<()> {
+async fn actual_main(_spawner: Spawner, stack: NetworkStack, sender: Sender<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE>) -> Result<()> {
     // graphics_demo(delay, display)?;
 
     let client_state = TcpClientState::<3, IO_BUFFER_SIZE, IO_BUFFER_SIZE>::new();
