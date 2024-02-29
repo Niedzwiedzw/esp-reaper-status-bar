@@ -51,21 +51,72 @@ const MAX_MESSAGE_SIZE: usize = 8;
 
 static REAPER_STATE_CHANNEL: Channel<CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE> = Channel::new();
 
-#[embassy_executor::task]
-async fn wifi_task(runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>) -> ! {
-    runner.run().await
+#[cortex_m_rt::entry]
+fn main() -> ! {
+    info!("Device is starting up");
+    let peripherals = embassy_rp::init(Default::default());
+    info!("peripherals OK");
+
+    let display = {
+        macro_rules! output {
+            ($pin:expr) => {
+                Output::new($pin, Level::Low)
+            };
+        }
+        MyMatrixDisplay::new((
+            peripherals.PIN_0.pipe(|p| output!(p)),
+            peripherals.PIN_1.pipe(|p| output!(p)),
+            peripherals.PIN_2.pipe(|p| output!(p)),
+            peripherals.PIN_3.pipe(|p| output!(p)),
+            peripherals.PIN_4.pipe(|p| output!(p)),
+            peripherals.PIN_5.pipe(|p| output!(p)),
+            peripherals.PIN_6.pipe(|p| output!(p)),
+            peripherals.PIN_7.pipe(|p| output!(p)),
+            peripherals.PIN_8.pipe(|p| output!(p)),
+            peripherals.PIN_9.pipe(|p| output!(p)),
+            peripherals.PIN_10.pipe(|p| output!(p)),
+            peripherals.PIN_11.pipe(|p| output!(p)),
+            peripherals.PIN_12.pipe(|p| output!(p)),
+            peripherals.PIN_13.pipe(|p| output!(p)),
+        ))
+        .wrap_err("creating matrix display")
+        .pipe(|display| unwrap!(display))
+    };
+    let wifi_setup_context = SetupWifiContext {
+        pwr_pin: peripherals.PIN_23,
+        cs_pin: peripherals.PIN_25,
+        dio_pin: peripherals.PIN_24,
+        clk_pin: peripherals.PIN_29,
+        dma_ch0: peripherals.DMA_CH0,
+        pio0_pin: peripherals.PIO0,
+    };
+    info!("WIFI pins OK");
+    // CORE 1
+    embassy_rp::multicore::spawn_core1(
+        peripherals.CORE1,
+        {
+            #[allow(static_mut_refs)]
+            unsafe {
+                &mut CORE1_STACK
+            }
+        },
+        move || {
+            let executor1 = EXECUTOR1.init(Executor::new());
+            info!("running core 1: display redrawing");
+            executor1.run(|spawner| unwrap!(spawner.spawn(keep_redrawing_screen(REAPER_STATE_CHANNEL.receiver(), display))));
+        },
+    );
+    // CORE 0
+    {
+        info!("display OK");
+        info!("running core 0");
+        let executor0 = EXECUTOR0.init(Executor::new());
+        executor0.run(|spawner| {
+            info!("spawning core 0: embassy main");
+            unwrap!(spawner.spawn(embassy_main(spawner, wifi_setup_context)))
+        });
+    }
 }
-
-#[embassy_executor::task]
-async fn net_task(stack: &'static Stack<cyw43::NetDriver<'static>>) -> ! {
-    stack.run().await
-}
-
-type NetworkStack = &'static Stack<cyw43::NetDriver<'static>>;
-
-// struct GlobalContext {
-//     network_stack: NetworkStack,
-// }
 
 #[embassy_executor::task]
 async fn keep_redrawing_screen(updates: Receiver<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE>, mut display: MyMatrixDisplay) {
@@ -85,6 +136,18 @@ async fn keep_redrawing_screen(updates: Receiver<'static, CriticalSectionRawMute
         }
     }
 }
+#[embassy_executor::task]
+async fn wifi_task(runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>) -> ! {
+    runner.run().await
+}
+
+#[embassy_executor::task]
+async fn net_task(stack: &'static Stack<cyw43::NetDriver<'static>>) -> ! {
+    stack.run().await
+}
+
+type NetworkStack = &'static Stack<cyw43::NetDriver<'static>>;
+
 const FIRMWARE_FW: &[u8] = include_bytes!("../cyw43-firmware/43439A0.bin");
 const FIRMWARE_CLM: &[u8] = include_bytes!("../cyw43-firmware/43439A0_clm.bin");
 
@@ -198,73 +261,6 @@ use embassy_executor::Executor;
 static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> = embassy_rp::multicore::Stack::new();
 static EXECUTOR0: StaticCell<Executor> = StaticCell::new();
 static EXECUTOR1: StaticCell<Executor> = StaticCell::new();
-
-#[cortex_m_rt::entry]
-fn main() -> ! {
-    info!("Device is starting up");
-    let peripherals = embassy_rp::init(Default::default());
-    info!("peripherals OK");
-
-    let display = {
-        macro_rules! output {
-            ($pin:expr) => {
-                Output::new($pin, Level::Low)
-            };
-        }
-        MyMatrixDisplay::new((
-            peripherals.PIN_0.pipe(|p| output!(p)),
-            peripherals.PIN_1.pipe(|p| output!(p)),
-            peripherals.PIN_2.pipe(|p| output!(p)),
-            peripherals.PIN_3.pipe(|p| output!(p)),
-            peripherals.PIN_4.pipe(|p| output!(p)),
-            peripherals.PIN_5.pipe(|p| output!(p)),
-            peripherals.PIN_6.pipe(|p| output!(p)),
-            peripherals.PIN_7.pipe(|p| output!(p)),
-            peripherals.PIN_8.pipe(|p| output!(p)),
-            peripherals.PIN_9.pipe(|p| output!(p)),
-            peripherals.PIN_10.pipe(|p| output!(p)),
-            peripherals.PIN_11.pipe(|p| output!(p)),
-            peripherals.PIN_12.pipe(|p| output!(p)),
-            peripherals.PIN_13.pipe(|p| output!(p)),
-        ))
-        .wrap_err("creating matrix display")
-        .pipe(|display| unwrap!(display))
-    };
-    let wifi_setup_context = SetupWifiContext {
-        pwr_pin: peripherals.PIN_23,
-        cs_pin: peripherals.PIN_25,
-        dio_pin: peripherals.PIN_24,
-        clk_pin: peripherals.PIN_29,
-        dma_ch0: peripherals.DMA_CH0,
-        pio0_pin: peripherals.PIO0,
-    };
-    info!("WIFI pins OK");
-    // CORE 1
-    embassy_rp::multicore::spawn_core1(
-        peripherals.CORE1,
-        {
-            #[allow(static_mut_refs)]
-            unsafe {
-                &mut CORE1_STACK
-            }
-        },
-        move || {
-            let executor1 = EXECUTOR1.init(Executor::new());
-            info!("running core 1: display redrawing");
-            executor1.run(|spawner| unwrap!(spawner.spawn(keep_redrawing_screen(REAPER_STATE_CHANNEL.receiver(), display))));
-        },
-    );
-    // CORE 0
-    {
-        info!("display OK");
-        info!("running core 0");
-        let executor0 = EXECUTOR0.init(Executor::new());
-        executor0.run(|spawner| {
-            info!("spawning core 0: embassy main");
-            unwrap!(spawner.spawn(embassy_main(spawner, wifi_setup_context)))
-        });
-    }
-}
 
 #[embassy_executor::task]
 async fn embassy_main(spawner: Spawner, wifi_setup_context: SetupWifiContext) {
