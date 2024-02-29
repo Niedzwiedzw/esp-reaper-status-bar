@@ -6,7 +6,7 @@ use embedded_graphics::{
     primitives::{Primitive, PrimitiveStyle, Rectangle},
     Drawable,
 };
-use embedded_wrap_err::{IntoWrapErrDebugExt, IntoWrapErrExt, Result, WrapErrorExt};
+use embedded_wrap_err::{IntoWrapErrDebugExt, Result, WrapErrorExt};
 use reaper::{PlayState, ReaperStatus, TrackData, TrackFlags};
 use tap::prelude::*;
 

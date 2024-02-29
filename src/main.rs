@@ -12,42 +12,28 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
 use embassy_sync::channel::{Channel, Sender};
-use embassy_sync::{
-    blocking_mutex::{raw::CriticalSectionRawMutex, CriticalSectionMutex},
-    channel::Receiver,
-};
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Receiver};
 use embassy_time::{with_timeout, Duration, Ticker, Timer};
-use embedded_svc::{
-    channel,
-    wifi::{ClientConfiguration, Configuration, Wifi},
-};
 use embedded_wrap_err::{IntoWrapErrExt, Result, WrapErrorExt as _};
 use log::error;
-use portable_atomic::{AtomicUsize, Ordering};
 use reaper::ReaperStatus;
-use renderer::ReaperStatusRenderExt;
 use static_cell::StaticCell;
+use status_bar_display::MyMatrixDisplay;
 // use status_bar_display::MyMatrixDisplay;
 use tap::Pipe;
 use {defmt_rtt as _, panic_probe as _};
 
 use cyw43_pio::PioSpi;
-use defmt::*;
 use embassy_executor::Spawner;
-use embassy_net::tcp::TcpSocket;
 use embassy_rp::bind_interrupts;
-use embedded_io_async::Write;
 use {defmt_rtt as _, panic_probe as _};
 
 pub mod reaper_diagnostic_fetch;
-// pub mod status_bar_display;
+pub mod status_bar_display;
 
 bind_interrupts!(struct Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
 });
-
-// const RX_BUFFER_SIZE: usize = BUFFER_SIZE;
-// const TX_BUFFER_SIZE: usize = BUFFER_SIZE;
 
 pub const MAX_TRACK_COUNT: usize = 64;
 
@@ -81,31 +67,24 @@ type NetworkStack = &'static Stack<cyw43::NetDriver<'static>>;
 //     network_stack: NetworkStack,
 // }
 
-// #[embassy_executor::task]
-// async fn keep_redrawing_screen(
-//     updates: Receiver<
-//         'static,
-//         CriticalSectionRawMutex,
-//         ReaperStatus<MAX_TRACK_COUNT>,
-//         MAX_MESSAGE_SIZE,
-//     >,
-//     // mut display: MyMatrixDisplay,
-// ) {
-//     let mut buffer = ReaperStatus::default();
+#[embassy_executor::task]
+async fn keep_redrawing_screen(updates: Receiver<'static, CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_SIZE>, mut display: MyMatrixDisplay) {
+    info!("screen task running");
+    let mut buffer = ReaperStatus::default();
 
-//     let mut ticker = Ticker::every(Duration::from_millis(50));
+    let mut ticker = Ticker::every(Duration::from_millis(50));
 
-//     loop {
-//         ticker.next().await;
-//         if let Ok(update) = updates.try_receive() {
-//             buffer = update;
-//         }
+    loop {
+        ticker.next().await;
+        if let Ok(update) = updates.try_receive() {
+            buffer = update;
+        }
 
-//         if let Err(message) = display.draw_state(&buffer) {
-//             error!("{message}");
-//         }
-//     }
-// }
+        if let Err(message) = display.draw_state(&buffer) {
+            error!("{message}");
+        }
+    }
+}
 const FIRMWARE_FW: &[u8] = include_bytes!("../cyw43-firmware/43439A0.bin");
 const FIRMWARE_CLM: &[u8] = include_bytes!("../cyw43-firmware/43439A0_clm.bin");
 
@@ -114,13 +93,32 @@ const STACK_RESOURCES_COUNT: usize = 3;
 static STACK: StaticCell<Stack<cyw43::NetDriver<'static>>> = StaticCell::new();
 static RESOURCES: StaticCell<StackResources<STACK_RESOURCES_COUNT>> = StaticCell::new();
 
-async fn setup(spawner: Spawner) -> Result<NetworkStack> {
+struct SetupWifiContext {
+    pwr_pin: embassy_rp::peripherals::PIN_23,
+    cs_pin: embassy_rp::peripherals::PIN_25,
+    dio_pin: embassy_rp::peripherals::PIN_24,
+    clk_pin: embassy_rp::peripherals::PIN_29,
+    dma_ch0: embassy_rp::peripherals::DMA_CH0,
+    pio0_pin: embassy_rp::peripherals::PIO0,
+}
+
+async fn setup_wifi(
+    spawner: Spawner,
+    SetupWifiContext {
+        pwr_pin,
+        cs_pin,
+        dio_pin,
+        clk_pin,
+        dma_ch0,
+        pio0_pin,
+    }: SetupWifiContext,
+) -> Result<NetworkStack> {
     info!("setup");
-    let peripherals = embassy_rp::init(Default::default());
-    let pwr = Output::new(peripherals.PIN_23, Level::Low);
-    let cs = Output::new(peripherals.PIN_25, Level::High);
-    let mut pio = Pio::new(peripherals.PIO0, Irqs);
-    let spi = PioSpi::new(&mut pio.common, pio.sm0, pio.irq0, cs, peripherals.PIN_24, peripherals.PIN_29, peripherals.DMA_CH0);
+
+    let pwr = Output::new(pwr_pin, Level::Low);
+    let cs = Output::new(cs_pin, Level::High);
+    let mut pio = Pio::new(pio0_pin, Irqs);
+    let spi = PioSpi::new(&mut pio.common, pio.sm0, pio.irq0, cs, dio_pin, clk_pin, dma_ch0);
     // let display =
     //     crate::status_bar_display::MyMatrixDisplay::new(io).wrap_err("
     // initializing display")?;
@@ -156,56 +154,6 @@ async fn setup(spawner: Spawner) -> Result<NetworkStack> {
         Timer::after_millis(100).await;
     }
     info!("DHCP is now up!");
-
-    // let system = peripherals.SYSTEM.split();
-
-    // let clocks = ClockControl::max(system.clock_control).freeze();
-    // // #[cfg(target_arch = "xtensa")]
-    // let timer = hal::timer::TimerGroup::new(peripherals.TIMG1, &clocks).timer0;
-    // // #[cfg(target_arch = "riscv32")]
-    // // let timer = hal::systimer::SystemTimer::new(peripherals.SYSTIMER).alarm0;
-    // let init = initialize(
-    //     EspWifiInitFor::Wifi,
-    //     timer,
-    //     Rng::new(peripherals.RNG),
-    //     system.radio_clock_control,
-    //     &clocks,
-    // )
-    // .into_wrap_err("initializing wifi")?;
-
-    // let wifi = peripherals.WIFI;
-    // let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi,
-    // WifiStaDevice)     .into_wrap_err("initializing wifi interface and
-    // controller")?;
-
-    // let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
-    // embassy::init(&clocks, timer_group0);
-
-    // let config = Config::dhcpv4(Default::default());
-
-    // let seed = 1234; // very random, very secure seed
-
-    // // Init network stack
-    // let stack: &'static _ = &*make_static!(Stack::new(
-    //     wifi_interface,
-    //     config,
-    //     make_static!(StackResources::<4>::new()),
-    //     seed
-    // ));
-
-    // spawner
-    //     .spawn(connection(controller))
-    //     .into_wrap_err("spawning connection controller")?;
-    // spawner
-    //     .spawn(net_task(stack))
-    //     .into_wrap_err("spawning net task")?;
-
-    // spawner
-    //     .spawn(keep_redrawing_screen(
-    //         REAPER_STATE_CHANNEL.receiver(),
-    //         display,
-    //     ))
-    //     .into_wrap_err("spawning redrawing loop")?;
 
     Ok(stack)
 }
@@ -245,13 +193,88 @@ macro_rules! debug_env {
     }};
 }
 
-#[embassy_executor::main]
-async fn main(spawner: Spawner) -> ! {
-    info!("board is booting up");
+use embassy_executor::Executor;
+
+static mut CORE1_STACK: embassy_rp::multicore::Stack<4096> = embassy_rp::multicore::Stack::new();
+static EXECUTOR0: StaticCell<Executor> = StaticCell::new();
+static EXECUTOR1: StaticCell<Executor> = StaticCell::new();
+
+#[cortex_m_rt::entry]
+fn main() -> ! {
+    info!("Device is starting up");
+    let peripherals = embassy_rp::init(Default::default());
+    info!("peripherals OK");
+
+    let display = {
+        macro_rules! output {
+            ($pin:expr) => {
+                Output::new($pin, Level::Low)
+            };
+        }
+        MyMatrixDisplay::new((
+            peripherals.PIN_0.pipe(|p| output!(p)),
+            peripherals.PIN_1.pipe(|p| output!(p)),
+            peripherals.PIN_2.pipe(|p| output!(p)),
+            peripherals.PIN_3.pipe(|p| output!(p)),
+            peripherals.PIN_4.pipe(|p| output!(p)),
+            peripherals.PIN_5.pipe(|p| output!(p)),
+            peripherals.PIN_6.pipe(|p| output!(p)),
+            peripherals.PIN_7.pipe(|p| output!(p)),
+            peripherals.PIN_8.pipe(|p| output!(p)),
+            peripherals.PIN_9.pipe(|p| output!(p)),
+            peripherals.PIN_10.pipe(|p| output!(p)),
+            peripherals.PIN_11.pipe(|p| output!(p)),
+            peripherals.PIN_12.pipe(|p| output!(p)),
+            peripherals.PIN_13.pipe(|p| output!(p)),
+        ))
+        .wrap_err("creating matrix display")
+        .pipe(|display| unwrap!(display))
+    };
+    let wifi_setup_context = SetupWifiContext {
+        pwr_pin: peripherals.PIN_23,
+        cs_pin: peripherals.PIN_25,
+        dio_pin: peripherals.PIN_24,
+        clk_pin: peripherals.PIN_29,
+        dma_ch0: peripherals.DMA_CH0,
+        pio0_pin: peripherals.PIO0,
+    };
+    info!("WIFI pins OK");
+    // CORE 1
+    embassy_rp::multicore::spawn_core1(
+        peripherals.CORE1,
+        {
+            #[allow(static_mut_refs)]
+            unsafe {
+                &mut CORE1_STACK
+            }
+        },
+        move || {
+            let executor1 = EXECUTOR1.init(Executor::new());
+            info!("running core 1: display redrawing");
+            executor1.run(|spawner| unwrap!(spawner.spawn(keep_redrawing_screen(REAPER_STATE_CHANNEL.receiver(), display))));
+        },
+    );
+    // CORE 0
+    {
+        info!("display OK");
+        info!("running core 0");
+        let executor0 = EXECUTOR0.init(Executor::new());
+        executor0.run(|spawner| {
+            info!("spawning core 0: embassy main");
+            unwrap!(spawner.spawn(embassy_main(spawner, wifi_setup_context)))
+        });
+    }
+}
+
+#[embassy_executor::task]
+async fn embassy_main(spawner: Spawner, wifi_setup_context: SetupWifiContext) {
+    info!("embassy is booting up");
     debug_env!(ESP_WIFI_SSID);
     debug_env!(ESP_WIFI_PASSWORD);
     debug_env!(ESP_REAPER_BASE_URL);
-    let stack = setup(spawner).await.expect("failed to setup network stack");
+    let stack = setup_wifi(spawner, wifi_setup_context)
+        .await
+        .expect("failed to setup network stack");
     loop {
         match actual_main(spawner, stack, REAPER_STATE_CHANNEL.sender()).await {
             Ok(_) => info!("app just finished"),
@@ -263,48 +286,3 @@ async fn main(spawner: Spawner) -> ! {
         }
     }
 }
-
-// #[allow(clippy::single_match)]
-// #[embassy_executor::task]
-// async fn connection(mut controller: WifiController<'static>) {
-//     info!("start connection task");
-//     info!("Device capabilities: {:?}", controller.get_capabilities());
-//     loop {
-//         match esp_wifi::wifi::get_wifi_state() {
-//             WifiState::StaConnected => {
-//                 // wait until we're no longer connected
-//                 controller.wait_for_event(WifiEvent::StaDisconnected).await;
-//                 info!("disconnected, reconecting");
-//                 Timer::after(Duration::from_millis(5000)).await
-//             }
-//             _ => {}
-//         }
-//         if !matches!(controller.is_started(), Ok(true)) {
-//             let client_config = Configuration::Client(ClientConfiguration {
-//                 ssid: ESP_WIFI_SSID.try_into().expect("bad ssid"),
-//                 password: ESP_WIFI_PASSWORD.try_into().expect("bad
-// password"),                 ..Default::default()
-//             });
-//             controller
-//                 .set_configuration(&client_config)
-//                 .expect("setting configuration");
-//             info!("Starting wifi");
-//             controller.start().await.expect("starting controller");
-//             info!("Wifi started!");
-//         }
-//         info!("About to connect...");
-
-//         match controller.connect().await {
-//             Ok(_) => info!("Wifi connected!"),
-//             Err(e) => {
-//                 info!("Failed to connect to wifi: {e:?}");
-//                 Timer::after(Duration::from_millis(5000)).await
-//             }
-//         }
-//     }
-// }
-
-// #[embassy_executor::task]
-// async fn net_task(stack: NetworkStack) {
-//     stack.run().await
-// }
