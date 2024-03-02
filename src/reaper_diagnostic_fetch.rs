@@ -17,6 +17,10 @@ where
     http_resource: HttpResource<'stack, T::Connection<'stack>>,
 }
 
+fn zero(buffer: &mut [u8]) {
+    buffer.iter_mut().for_each(|v| *v = 0)
+}
+
 impl<'stack, 'client: 'stack, T> ReaperClient<'stack, T>
 where
     T: TcpConnect + 'stack,
@@ -38,6 +42,7 @@ where
         // println!("fetching status from [{url}]");
         {
             let mut buffer = [0; MAX_RESPONSE_SIZE];
+
             // println!("buffer initialized");
             self.http_resource
                 .request(Method::GET, &url)

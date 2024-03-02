@@ -11,6 +11,7 @@ impl<T, E: core::fmt::Debug> core::result::Result<T, E> {
         self.map_err(|e| {
             let mut out = String::<256>::new();
             write!(&mut out, "{:?}", e).ok();
+            #[cfg(not(feature = "std"))]
             error!("ERROR: {:?}", out);
             context
         })
@@ -20,6 +21,7 @@ impl<T, E: core::fmt::Debug> core::result::Result<T, E> {
 impl<T, E: defmt::Format> core::result::Result<T, E> {
     fn into_wrap_err(self, context: &'static str) -> Result<T> {
         self.map_err(|e| {
+            #[cfg(not(feature = "std"))]
             error!("ERROR: {:?}", e);
             context
         })
@@ -30,6 +32,7 @@ impl<T, E: defmt::Format> core::result::Result<T, E> {
 impl<T> Result<T> {
     fn wrap_err(self, context: &'static str) -> Result<T> {
         self.map_err(|error| {
+            #[cfg(not(feature = "std"))]
             error!("CAUSED BY: {}", error);
             context
         })

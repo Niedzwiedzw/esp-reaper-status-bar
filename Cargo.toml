@@ -5,10 +5,6 @@ exclude = ["renderer-tester"]
 resolver = "2"
 
 [workspace.dependencies]
-# drawing
-# hub75-pio = { git = "https://github.com/kjagiello/hub75-pio-rs", rev = "262bca7", version = "0.1.0" }
-
-
 # embassy
 embassy-embedded-hal = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", rev = "263d1b0", package = "embassy-embedded-hal", features = [
   "defmt",
@@ -34,6 +30,8 @@ embassy-rp = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy",
   "unstable-pac",
   "time-driver",
   "critical-section-impl",
+  # "intrinsics",
+  "rom-v2-intrinsics",
 ] }
 embassy-usb = { version = "0.1.0", git = "https://github.com/embassy-rs/embassy", rev = "263d1b0", package = "embassy-usb", features = [
   "defmt",
@@ -92,12 +90,12 @@ embedded-graphics = "0.8"
 # hub75 = { git = "https://github.com/david-sawatzke/hub75-rs", rev = "ba1eaa6", features = [
 #   "size-64x64",
 # ] }
-# hub75 = { git = "https://github.com/Niedzwiedzw/hub75-rs", rev = "30f2aa6", features = [
-#   "size-64x64",
-# ] }
-hub75 = { path = "/home/niedzwiedz/Programming/hub75-rs", features = [
+hub75 = { git = "https://github.com/Niedzwiedzw/hub75-rs", branch = "remove-pwm", features = [
   "size-64x64",
 ] }
+# hub75 = { path = "/home/niedzwiedz/Programming/hub75-rs", features = [
+#   "size-64x64",
+# ] }
 embedded-hal = "0.2"
 
 defmt = "0.3"
@@ -119,7 +117,7 @@ st7789 = "0.6.1"
 display-interface = "0.4.1"
 byte-slice-cast = { version = "1.2.0", default-features = false }
 smart-leds = "0.3.0"
-heapless = "0.8"
+heapless = { version = "0.8" }
 usbd-hid = "0.7.0"
 
 embedded-hal-1 = { package = "embedded-hal", version = "1.0" }
@@ -224,4 +222,5 @@ opt-level = 3
 [profile.release]
 debug = true
 codegen-units = 1
-opt-level = 3
+opt-level = "s"
+lto = "fat"

@@ -2,7 +2,7 @@
 
 use embedded_graphics::{
     geometry::{Point, Size},
-    pixelcolor::{Rgb565, RgbColor, WebColors},
+    pixelcolor::{RgbColor, WebColors},
     primitives::{Primitive, PrimitiveStyle, Rectangle},
     Drawable,
 };
@@ -10,7 +10,7 @@ use embedded_wrap_err::{IntoWrapErrDebugExt, Result, WrapErrorExt};
 use reaper::{PlayState, ReaperStatus, TrackData, TrackFlags};
 use tap::prelude::*;
 
-type ColorType = Rgb565;
+type ColorType = embedded_graphics::pixelcolor::Rgb888;
 
 pub fn minus_decibel_to_height(minus_decibel: i16) -> f32 {
     1. + (minus_decibel.min(0) as f32 / 1500.)
@@ -18,6 +18,7 @@ pub fn minus_decibel_to_height(minus_decibel: i16) -> f32 {
 
 #[extension_traits::extension(pub trait ReaperStatusRenderExt)]
 impl<const MAX_TRACK_COUNT: usize> ReaperStatus<MAX_TRACK_COUNT> {
+    #[inline(always)]
     fn render<E, D>(&self, display: &mut D) -> Result<()>
     where
         E: core::fmt::Debug,
@@ -35,7 +36,7 @@ impl<const MAX_TRACK_COUNT: usize> ReaperStatus<MAX_TRACK_COUNT> {
             const TRACK_LEVEL_COLOR: ColorType = ColorType::GREEN;
             const TRACK_PEAK_COLOR: ColorType = ColorType::YELLOW;
             const TRACK_PEAK_ERROR: ColorType = ColorType::RED;
-            const TRACK_MUTED_COLOR: ColorType = ColorType::CSS_DIM_GRAY;
+            const TRACK_MUTED_COLOR: ColorType = ColorType::CYAN;
             // pub fn draw_state(&mut self, ReaperStatus { play_state, tracks }:
             // ReaperStatus) -> Result<()> { println!("drawing state");
             const TOTAL_HEIGHT: u32 = 64;
@@ -61,41 +62,47 @@ impl<const MAX_TRACK_COUNT: usize> ReaperStatus<MAX_TRACK_COUNT> {
                     let position = |index: usize, decibel_value| Point::new(index as _, (STATUS_BAR_HEIGHT + MAX_TRACK_HEIGHT - height(decibel_value)) as _);
                     let rectangle = |index, decibel_value| Rectangle::new(position(index, decibel_value), Size::new(1, height(decibel_value)));
                     let max_value = last_meter_pos.max(last_meter_peak);
-                    Ok(())
-                        .and_then(|_| {
-                            rectangle(index as _, *last_meter_pos)
-                                .into_styled(TRACK_LEVEL_COLOR.pipe(PrimitiveStyle::with_fill))
-                                .draw(display)
-                                .into_wrap_err_dbg("drawing track")
-                        })
-                        .and_then(|_| {
-                            rectangle(index as _, *last_meter_peak)
-                                .into_styled(TRACK_PEAK_COLOR.pipe(PrimitiveStyle::with_fill))
-                                .draw(display)
-                                .into_wrap_err_dbg("drawing track")
-                        })
-                        .and_then(|_| {
-                            max_value
-                                .ge(&0)
-                                .then(|| {
-                                    rectangle(index as _, *max_value)
-                                        .into_styled(TRACK_PEAK_ERROR.pipe(PrimitiveStyle::with_fill))
-                                        .draw(display)
-                                        .into_wrap_err_dbg("drawing track")
-                                })
-                                .unwrap_or(Ok(()))
-                        })
-                        .and_then(|_| {
-                            flags
-                                .contains(TrackFlags::Muted)
-                                .then(|| {
-                                    rectangle(index as _, *max_value)
-                                        .into_styled(TRACK_MUTED_COLOR.pipe(PrimitiveStyle::with_fill))
-                                        .draw(display)
-                                        .into_wrap_err_dbg("drawing track")
-                                })
-                                .unwrap_or(Ok(()))
-                        })
+
+                    let is_peaking = last_meter_pos >= &0 || last_meter_peak >= &0;
+                    let track_color = match (*flags, is_peaking) {
+                        (flags, _) if flags.contains(TrackFlags::Muted) => TRACK_MUTED_COLOR,
+                        (_, true) => TRACK_PEAK_ERROR,
+                        (_, false) => TRACK_LEVEL_COLOR,
+                    };
+                    Ok(()).and_then(|_| {
+                        rectangle(index as _, *last_meter_pos)
+                            .into_styled(track_color.pipe(PrimitiveStyle::with_fill))
+                            .draw(display)
+                            .into_wrap_err_dbg("drawing track")
+                    })
+                    // .and_then(|_| {
+                    //     rectangle(index as _, *last_meter_peak)
+                    //         .into_styled(TRACK_PEAK_COLOR.pipe(PrimitiveStyle::with_fill))
+                    //         .draw(display)
+                    //         .into_wrap_err_dbg("drawing track")
+                    // })
+                    // .and_then(|_| {
+                    //     max_value
+                    //         .ge(&0)
+                    //         .then(|| {
+                    //             rectangle(index as _, *max_value)
+                    //                 .into_styled(TRACK_PEAK_ERROR.pipe(PrimitiveStyle::with_fill))
+                    //                 .draw(display)
+                    //                 .into_wrap_err_dbg("drawing track")
+                    //         })
+                    //         .unwrap_or(Ok(()))
+                    // })
+                    // .and_then(|_| {
+                    //     flags
+                    //         .contains(TrackFlags::Muted)
+                    //         .then(|| {
+                    //             rectangle(index as _, *max_value)
+                    //                 .into_styled(TRACK_MUTED_COLOR.pipe(PrimitiveStyle::with_fill))
+                    //                 .draw(display)
+                    //                 .into_wrap_err_dbg("drawing track")
+                    //         })
+                    //         .unwrap_or(Ok(()))
+                    // })
                 })
                 .wrap_err("drawing all tracks")?;
 

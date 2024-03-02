@@ -8,9 +8,12 @@ use embassy_net::{
     tcp::client::{TcpClient, TcpClientState},
     Config, Stack, StackResources,
 };
-use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::{InterruptHandler, Pio};
+use embassy_rp::{
+    gpio::{Level, Output},
+    pac::Interrupt::CLOCKS_IRQ,
+};
 use embassy_sync::channel::{Channel, Sender};
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, channel::Receiver};
 use embassy_time::{with_timeout, Delay, Duration, Ticker, Timer};
@@ -20,6 +23,7 @@ use log::error;
 use reaper::ReaperStatus;
 use static_cell::StaticCell;
 use status_bar_display::MyMatrixDisplay;
+use tap::prelude::*;
 // use status_bar_display::MyMatrixDisplay;
 use tap::Pipe;
 use {defmt_rtt as _, panic_probe as _};
@@ -52,10 +56,25 @@ const MAX_MESSAGE_COUNT: usize = 8;
 
 static REAPER_STATE_CHANNEL: Channel<CriticalSectionRawMutex, ReaperStatus<MAX_TRACK_COUNT>, MAX_MESSAGE_COUNT> = Channel::new();
 
+// https://github.com/embassy-rs/embassy/issues/1736
+// https://github.com/probe-rs/probe-rs/pull/1603
+#[cortex_m_rt::pre_init]
+unsafe fn pre_init() {
+    // Reset spinlock 31
+    core::arch::asm!(
+        "
+        ldr r0, =1
+        ldr r1, =0xd000017c
+        str r0, [r1]
+        "
+    );
+}
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
     info!("Device is starting up");
     let peripherals = embassy_rp::init(Default::default());
+
     info!("peripherals OK");
 
     let display = {

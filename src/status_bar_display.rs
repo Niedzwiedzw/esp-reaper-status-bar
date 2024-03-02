@@ -1,4 +1,5 @@
 use super::*;
+use embedded_graphics::draw_target::DrawTarget;
 use embedded_hal::blocking::delay::DelayUs;
 use embedded_wrap_err::WrapErrorExt;
 use renderer::ReaperStatusRenderExt;
@@ -112,11 +113,16 @@ impl MyMatrixDisplay {
 
         Ok(Self(display))
     }
+    #[inline(always)]
     pub fn draw(&mut self, delay: &mut impl DelayUs<u8>) -> Result<()> {
         self.0.output(delay).into_wrap_err("displaying output")
     }
-
     pub fn update_display_data(&mut self, status: &ReaperStatus<MAX_TRACK_COUNT>) -> Result<()> {
-        status.render(&mut self.0).wrap_err("updating render data")
+        self.0.clear();
+        status
+            .render(&mut self.0)
+            .wrap_err("updating render data")?;
+        debug!("new state: {:?}", &self.0.data.last());
+        Ok(())
     }
 }
